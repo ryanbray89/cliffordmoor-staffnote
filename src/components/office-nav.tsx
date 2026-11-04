@@ -11,6 +11,7 @@ export function OfficeNav({ newCount }: { newCount: number }) {
   const pathname = usePathname();
   const inbox = pathname === "/admin";
   const jobs = pathname.startsWith("/admin/jobs");
+  const walks = pathname.startsWith("/admin/walks");
   const shopping = pathname.startsWith("/admin/shopping");
   const team = pathname.startsWith("/admin/team");
 
@@ -43,6 +44,16 @@ export function OfficeNav({ newCount }: { newCount: number }) {
         aria-current={jobs ? "page" : undefined}
       >
         Jobs
+      </Link>
+      <Link
+        href="/admin/walks"
+        className={buttonVariants({
+          variant: walks ? "default" : "outline",
+          className: "h-11 rounded-full px-4",
+        })}
+        aria-current={walks ? "page" : undefined}
+      >
+        Walks
       </Link>
       <Link
         href="/admin/shopping"

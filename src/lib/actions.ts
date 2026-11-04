@@ -19,6 +19,7 @@ import { getStore } from "@/lib/store";
 import { londonToday } from "@/lib/time";
 import type { Entry, EntryStatus } from "@/lib/types";
 import { validateShopping } from "@/lib/shopping";
+import { clampWalkDay, validateWalkPlan } from "@/lib/walks";
 import { cleanPersonName, validateEntry, type RawEntry } from "@/lib/validate";
 
 function refresh() {
@@ -36,6 +37,7 @@ function friendlySaveError(error: unknown): string {
     message.includes("Supabase") ||
     message.includes("tables") ||
     message.includes("shopping") ||
+    message.includes("walk plan") ||
     message.includes("bucket") ||
     message.includes("damaged") ||
     message.includes("SUPABASE_URL")
@@ -268,6 +270,79 @@ export async function renameStaffMember(formData: FormData) {
 export async function setStaffActive(formData: FormData) {
   await requireOffice();
   await getStore().setStaffActive(String(formData.get("id") ?? ""), formData.get("active") === "yes");
+  refresh();
+}
+
+async function walkActor(source: string): Promise<{ name: string; staffId: string | null; office: boolean }> {
+  if (source === "office") {
+    if (!(await isAdmin())) redirect("/admin/login");
+    return { name: OFFICE_AUTHOR, staffId: null, office: true };
+  }
+  const staff = await getCurrentStaff();
+  if (!staff) redirect("/?needName=1");
+  return { name: staff.name, staffId: staff.id, office: false };
+}
+
+function walkHome(office: boolean, day: string): string {
+  return office ? `/admin/walks?day=${day}` : `/walks?day=${day}`;
+}
+
+export async function saveWalkDog(
+  _previous: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const actor = await walkActor(String(formData.get("source") ?? "yard"));
+  const today = londonToday();
+  const validated = validateWalkPlan(
+    {
+      dogName: String(formData.get("dogName") ?? ""),
+      note: String(formData.get("note") ?? ""),
+      dates: formData.getAll("walkDate").map(String),
+    },
+    today,
+  );
+  if (!validated.ok) return { error: validated.error };
+  const id = String(formData.get("id") ?? "");
+  const requested = clampWalkDay(String(formData.get("day") ?? ""), today);
+  try {
+    if (id) await getStore().updateWalkDog(id, validated.value);
+    else await getStore().addWalkDog({ ...validated.value, createdByName: actor.name });
+  } catch (error) {
+    if (error instanceof Error && error.message === "missing") {
+      return { error: "That dog is no longer on the plan." };
+    }
+    console.error(error);
+    return { error: friendlySaveError(error) };
+  }
+  refresh();
+  redirect(walkHome(actor.office, id ? requested : validated.value.dates[0]));
+}
+
+export async function removeWalkDog(formData: FormData) {
+  const actor = await walkActor(String(formData.get("source") ?? "yard"));
+  const day = clampWalkDay(String(formData.get("day") ?? ""), londonToday());
+  await getStore().removeWalkDog(String(formData.get("id") ?? ""));
+  refresh();
+  redirect(walkHome(actor.office, day));
+}
+
+export async function markWalkDone(formData: FormData) {
+  const actor = await walkActor(String(formData.get("source") ?? "yard"));
+  try {
+    await getStore().markWalkDone(String(formData.get("id") ?? ""), actor);
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "missing")) throw error;
+  }
+  refresh();
+}
+
+export async function undoWalk(formData: FormData) {
+  await walkActor(String(formData.get("source") ?? "yard"));
+  try {
+    await getStore().undoWalk(String(formData.get("id") ?? ""));
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "missing")) throw error;
+  }
   refresh();
 }
 

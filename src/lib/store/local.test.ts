@@ -191,4 +191,37 @@ describe("local store", () => {
     await writeFile(file, JSON.stringify(db));
     assert.deepEqual(await store.listShopping(), []);
   });
+
+  it("plans walks, marks one done, and still opens an older book", async () => {
+    const store = createLocalStore(dir);
+    const created = await store.addWalkDog({
+      dogName: "Bramble",
+      note: "Kennel 12",
+      dates: ["2026-11-04", "2026-11-05"],
+      createdByName: "Jordanna",
+    });
+    assert.equal(created.days.length, 2);
+    const today = created.days.find((day) => day.walkDate === "2026-11-04");
+    assert.ok(today);
+    await store.markWalkDone(today.id, { staffId: SEED_IDS.jordanna, name: "Jordanna" });
+    const updated = await store.updateWalkDog(created.id, {
+      dogName: "Bramble",
+      note: "Kennel 12",
+      dates: ["2026-11-04"],
+    });
+    assert.deepEqual(updated.days.map((day) => day.walkDate), ["2026-11-04"]);
+    assert.equal(updated.days[0]?.doneByName, "Jordanna");
+    await store.undoWalk(updated.days[0].id);
+    const cleared = (await store.listWalkPlan()).find((dog) => dog.id === created.id);
+    assert.equal(cleared?.days[0]?.doneAt, null);
+    await store.removeWalkDog(created.id);
+    assert.equal((await store.listWalkPlan()).find((dog) => dog.id === created.id)?.active, false);
+
+    const file = path.join(dir, "staff-note.json");
+    const db = JSON.parse(await readFile(file, "utf8")) as { walkDogs?: unknown; walkDays?: unknown };
+    delete db.walkDogs;
+    delete db.walkDays;
+    await writeFile(file, JSON.stringify(db));
+    assert.deepEqual(await store.listWalkPlan(), []);
+  });
 });

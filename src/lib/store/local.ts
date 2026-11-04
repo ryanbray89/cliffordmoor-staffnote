@@ -7,6 +7,7 @@ import type { ShoppingItem } from "@/lib/shopping";
 import { buildSeed, type Database, type StoredEntry } from "@/lib/seed";
 import type { Entry, Reply, Staff } from "@/lib/types";
 import { readWalkDates } from "@/lib/walk-dates";
+import { joinWalkPlan, normalizeWalkDays, normalizeWalkDogs, type WalkDayRecord } from "@/lib/walks";
 import type { PhotoFile, Store } from "@/lib/store/types";
 
 const locks = new Map<string, Promise<unknown>>();
@@ -119,6 +120,8 @@ async function readDb(dir: string): Promise<Database> {
         throw new Error("shape");
       }
       parsed.shopping = normalizeShopping(parsed.shopping);
+      parsed.walkDogs = normalizeWalkDogs(parsed.walkDogs);
+      parsed.walkDays = normalizeWalkDays(parsed.walkDays);
       return parsed;
     } catch {
       throw new Error("The local Staff Note file is damaged. Check data/staff-note.json.");
@@ -287,6 +290,104 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
             createdAt: entry.createdAt,
           }))
           .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn) || b.createdAt.localeCompare(a.createdAt));
+      });
+    },
+
+    async listWalkPlan() {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        return joinWalkPlan(db.walkDogs, db.walkDays);
+      });
+    },
+
+    async addWalkDog(input) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const dogId = randomUUID();
+        const createdAt = new Date().toISOString();
+        db.walkDogs.push({
+          id: dogId,
+          dogName: input.dogName,
+          note: input.note,
+          createdByName: input.createdByName,
+          createdAt,
+          active: true,
+        });
+        const days: WalkDayRecord[] = input.dates.map((walkDate) => ({
+          id: randomUUID(),
+          walkDogId: dogId,
+          walkDate,
+          doneAt: null,
+          doneBy: null,
+          doneByName: null,
+        }));
+        db.walkDays.push(...days);
+        await writeDb(dir, db);
+        return { id: dogId, dogName: input.dogName, note: input.note, createdByName: input.createdByName, createdAt, active: true, days };
+      });
+    },
+
+    async updateWalkDog(id, input) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const dog = db.walkDogs.find((item) => item.id === id && item.active);
+        if (!dog) throw new Error("missing");
+        dog.dogName = input.dogName;
+        dog.note = input.note;
+        const keep = new Set(input.dates);
+        db.walkDays = db.walkDays.filter((day) => day.walkDogId !== id || keep.has(day.walkDate));
+        const existing = new Set(db.walkDays.filter((day) => day.walkDogId === id).map((day) => day.walkDate));
+        for (const walkDate of input.dates) {
+          if (existing.has(walkDate)) continue;
+          db.walkDays.push({
+            id: randomUUID(),
+            walkDogId: id,
+            walkDate,
+            doneAt: null,
+            doneBy: null,
+            doneByName: null,
+          });
+        }
+        await writeDb(dir, db);
+        const joined = joinWalkPlan(db.walkDogs, db.walkDays).find((item) => item.id === id);
+        if (!joined) throw new Error("missing");
+        return joined;
+      });
+    },
+
+    async removeWalkDog(id) {
+      await withLock(dir, async () => {
+        const db = await readDb(dir);
+        const dog = db.walkDogs.find((item) => item.id === id);
+        if (!dog) return;
+        dog.active = false;
+        await writeDb(dir, db);
+      });
+    },
+
+    async markWalkDone(dayId, actor) {
+      await withLock(dir, async () => {
+        const db = await readDb(dir);
+        const day = db.walkDays.find((item) => item.id === dayId);
+        if (!day) throw new Error("missing");
+        if (!day.doneAt) {
+          day.doneAt = new Date().toISOString();
+          day.doneBy = actor.staffId;
+          day.doneByName = actor.name;
+          await writeDb(dir, db);
+        }
+      });
+    },
+
+    async undoWalk(dayId) {
+      await withLock(dir, async () => {
+        const db = await readDb(dir);
+        const day = db.walkDays.find((item) => item.id === dayId);
+        if (!day) throw new Error("missing");
+        day.doneAt = null;
+        day.doneBy = null;
+        day.doneByName = null;
+        await writeDb(dir, db);
       });
     },
 

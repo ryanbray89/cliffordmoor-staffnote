@@ -1,4 +1,5 @@
 import type { ShoppingItem } from "@/lib/shopping";
+import type { WalkDayRecord, WalkDogRecord } from "@/lib/walks";
 import type { Entry, Reply, Staff } from "@/lib/types";
 import { shiftCivilDate, londonToday } from "@/lib/time";
 
@@ -25,6 +26,8 @@ export type Database = {
   entries: StoredEntry[];
   replies: Reply[];
   shopping: ShoppingItem[];
+  walkDogs: WalkDogRecord[];
+  walkDays: WalkDayRecord[];
 };
 
 function ago(now: Date, minutes: number): string {
@@ -230,5 +233,5 @@ export function buildSeed(now = new Date()): Database {
     },
   ];
 
-  return { staff, entries, replies, shopping: [] };
+  return { staff, entries, replies, shopping: [], walkDogs: [], walkDays: [] };
 }

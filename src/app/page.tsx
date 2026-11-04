@@ -7,6 +7,7 @@ import { LOG_PATHS, logLabel } from "@/lib/catalog";
 import { EMPTY_FILTERS, one } from "@/lib/filters";
 import { getCurrentStaff } from "@/lib/session";
 import { formatLongDate, greetingForHour, londonHour, londonToday } from "@/lib/time";
+import { walksOn } from "@/lib/walks";
 import type { Entry } from "@/lib/types";
 import { BrandLockup } from "@/components/brand";
 import { Shell } from "@/components/shell";
@@ -44,13 +45,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   let mine: Entry[] = [];
   let neededCount = 0;
+  let walksLeft = 0;
   if (current) {
-    const [logs, shopping] = await Promise.all([
+    const [logs, shopping, plan] = await Promise.all([
       book.store.listEntries({ ...EMPTY_FILTERS, staffId: current.id }, 12),
       book.store.listShopping(),
+      book.store.listWalkPlan(),
     ]);
     mine = logs;
     neededCount = shopping.filter((item) => item.status === "needed").length;
+    walksLeft = walksOn(plan, londonToday()).filter((row) => !row.day.doneAt).length;
   }
   const replies = mine
     .filter((entry) => entry.replies.length > 0)
@@ -159,7 +163,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </span>
             </Link>
             <Link
-              href={LOG_PATHS.dog}
+              href="/walks"
               className="flex min-h-24 items-center gap-4 rounded-2xl bg-card px-4 py-4 shadow-sm ring-1 ring-border active:bg-accent"
             >
               <span className="flex size-12 items-center justify-center rounded-2xl bg-accent text-primary">
@@ -167,7 +171,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </span>
               <span>
                 <span className="block text-lg font-semibold">Extra walk</span>
-                <span className="block text-sm text-muted-foreground">A 30 minute walk, on the days you pick</span>
+                <span className="block text-sm text-muted-foreground">
+                  {walksLeft > 0 ? `${walksLeft} still to walk` : "Who needs a walk today"}
+                </span>
               </span>
             </Link>
             <Link
