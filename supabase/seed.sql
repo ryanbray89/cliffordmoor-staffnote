@@ -10,7 +10,7 @@ on conflict (id) do nothing;
 
 insert into public.entries (
   id, type, staff_id, staff_name, title, detail, dog_name, owner_name, kennel, area,
-  job_state, quantity, duration_mins, urgent, happened_on, status, charged, sample, created_at, updated_at
+  job_state, quantity, duration_mins, walk_dates, urgent, happened_on, status, charged, sample, created_at, updated_at
 )
 values
   (
@@ -21,7 +21,7 @@ values
     'Maintenance',
     'Heater in kennel 9 is not coming on. The dog has been moved to kennel 15 for tonight.',
     null, null, null, null,
-    null, null, null, true,
+    null, null, null, null, true,
     (timezone('Europe/London', now()))::date,
     'new', null, true,
     now() - interval '10 minutes',
@@ -35,7 +35,7 @@ values
     'Bath',
     'Had a bath before collection this afternoon.',
     'Bramble', 'Hale', '12', null,
-    null, 1, 30, false,
+    null, 1, 30, null, false,
     (timezone('Europe/London', now()))::date,
     'new', false, true,
     now() - interval '25 minutes',
@@ -49,7 +49,7 @@ values
     'Customer comment',
     'Mrs Hale said Bramble settled really well and asked us to pass on her thanks.',
     'Bramble', null, null, null,
-    null, null, null, false,
+    null, null, null, null, false,
     (timezone('Europe/London', now()))::date,
     'seen', null, true,
     now() - interval '40 minutes',
@@ -63,7 +63,7 @@ values
     'Medication',
     'Morning tablet given, as on the chart.',
     'Alfie', null, '4', null,
-    null, 1, null, false,
+    null, 1, null, null, false,
     (timezone('Europe/London', now()))::date,
     'seen', false, true,
     now() - interval '2 hours',
@@ -77,7 +77,7 @@ values
     'Mend paddock 2 gate latch',
     'The latch is loose. Dogs are still secure, but it needs sorting today.',
     null, null, null, 'Paddocks',
-    'needs_doing', null, null, true,
+    'needs_doing', null, null, null, true,
     (timezone('Europe/London', now()))::date,
     'new', null, true,
     now() - interval '3 hours',
@@ -91,7 +91,12 @@ values
     'Extra walk',
     'Owner asked for an extra lunchtime walk.',
     'Mabel', 'Carter', '7', null,
-    null, 1, 20, false,
+    null, 2, 30,
+    array[
+      (timezone('Europe/London', now()))::date - 1,
+      (timezone('Europe/London', now()))::date
+    ]::date[],
+    false,
     (timezone('Europe/London', now()))::date - 1,
     'new', false, true,
     now() - interval '26 hours',
@@ -105,7 +110,7 @@ values
     'Laundry',
     'Kennel blankets through the wash.',
     null, null, null, 'Laundry',
-    'done', null, null, false,
+    'done', null, null, null, false,
     (timezone('Europe/London', now()))::date - 1,
     'done', null, true,
     now() - interval '32 hours',

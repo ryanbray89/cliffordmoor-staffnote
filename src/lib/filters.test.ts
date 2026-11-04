@@ -19,6 +19,7 @@ function entry(overrides: Partial<Entry> = {}): Entry {
     jobState: null,
     quantity: 1,
     durationMins: null,
+    walkDates: null,
     urgent: false,
     happenedOn: "2026-11-02",
     status: "new",

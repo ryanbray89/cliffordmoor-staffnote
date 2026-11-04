@@ -34,6 +34,7 @@ export type Entry = {
   jobState: JobState | null;
   quantity: number | null;
   durationMins: number | null;
+  walkDates: string[] | null;
   urgent: boolean;
   happenedOn: string;
   status: EntryStatus;
@@ -58,6 +59,7 @@ export type NewEntry = {
   jobState: JobState | null;
   quantity: number | null;
   durationMins: number | null;
+  walkDates: string[] | null;
   urgent: boolean;
   happenedOn: string;
   photo: {

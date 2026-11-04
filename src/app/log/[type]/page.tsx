@@ -14,11 +14,11 @@ import { Shell } from "@/components/shell";
 const COPY = {
   job: {
     title: "Extra job",
-    hint: "Log work you have done, or something that still needs doing.",
+    hint: "Pick every job that applies. Add your own if it is not on the list.",
   },
   dog: {
-    title: "Extra dog work",
-    hint: "Walks, medication, baths, nails, anything extra for one dog.",
+    title: "Extra walk",
+    hint: "Pick the dog and the days. Each walk is 30 minutes.",
   },
   note: {
     title: "Note for Ryan",

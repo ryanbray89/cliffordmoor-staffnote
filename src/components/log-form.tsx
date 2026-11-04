@@ -3,8 +3,11 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createEntry } from "@/lib/actions";
-import { AREAS, DURATIONS, JOB_SUGGESTIONS, MAX_PHOTO_BYTES, NOTE_CATEGORIES, SERVICES } from "@/lib/catalog";
+import { AREAS, MAX_PHOTO_BYTES, NOTE_CATEGORIES, WALK_TITLE } from "@/lib/catalog";
 import { compressPhoto } from "@/lib/compress-photo";
+import { ChoiceChip } from "@/components/choice-chip";
+import { JobPicker } from "@/components/job-picker";
+import { WalkCalendar } from "@/components/walk-calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,30 +16,6 @@ import { cn } from "@/lib/utils";
 
 const fieldClass = "h-14 rounded-2xl bg-card px-4 text-lg md:text-lg";
 const areaClass = "min-h-32 rounded-2xl bg-card px-4 py-3 text-lg md:text-lg";
-
-function Chip({
-  pressed,
-  onClick,
-  children,
-}: {
-  pressed: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-12 items-center rounded-full px-4 text-base font-semibold",
-        pressed ? "bg-primary text-primary-foreground" : "bg-card text-foreground ring-1 ring-border",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 function Field({
   label,
@@ -178,54 +157,30 @@ export function LogForm({
   recentDogs: string[];
 }) {
   const [state, action, pending] = useActionState(createEntry, {});
-  const [title, setTitle] = useState("");
-  const [service, setService] = useState("");
-  const [customService, setCustomService] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [area, setArea] = useState("");
   const [jobState, setJobState] = useState<"done" | "needs_doing">("done");
-  const [quantity, setQuantity] = useState(1);
-  const [duration, setDuration] = useState("");
   const [dogName, setDogName] = useState("");
 
   const entryType = kind === "job" ? "extra_job" : kind === "dog" ? "extra_dog_work" : "note";
-  const submittedTitle =
-    kind === "job" ? title : kind === "dog" ? (service === "Other" ? customService : service) : category === "Other" ? customCategory : category;
+  const submittedTitle = kind === "dog" ? WALK_TITLE : category === "Other" ? customCategory : category;
 
   return (
     <form action={action} className="flex flex-col gap-6">
       <input type="hidden" name="type" value={entryType} />
-      <input type="hidden" name="title" value={submittedTitle} />
+      <input type="hidden" name="title" value={kind === "job" ? "" : submittedTitle} />
 
-      {kind === "job" ? (
-        <Field label="What is the job?">
-          <div className="flex flex-wrap gap-2">
-            {JOB_SUGGESTIONS.map((item) => (
-              <Chip key={item} pressed={title === item} onClick={() => setTitle(item)}>
-                {item}
-              </Chip>
-            ))}
-          </div>
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Or type it"
-            maxLength={80}
-            autoComplete="off"
-            className={fieldClass}
-          />
-        </Field>
-      ) : null}
+      {kind === "job" ? <JobPicker /> : null}
 
       {kind === "job" ? (
         <Field label="Where on the yard?" hint="Optional.">
           <input type="hidden" name="area" value={area} />
           <div className="flex flex-wrap gap-2">
             {AREAS.map((item) => (
-              <Chip key={item} pressed={area === item} onClick={() => setArea(area === item ? "" : item)}>
+              <ChoiceChip key={item} pressed={area === item} onClick={() => setArea(area === item ? "" : item)}>
                 {item}
-              </Chip>
+              </ChoiceChip>
             ))}
           </div>
         </Field>
@@ -271,9 +226,9 @@ export function LogForm({
           {recentDogs.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {recentDogs.map((dog) => (
-                <Chip key={dog} pressed={dogName === dog} onClick={() => setDogName(dog)}>
+                <ChoiceChip key={dog} pressed={dogName === dog} onClick={() => setDogName(dog)}>
                   {dog}
-                </Chip>
+                </ChoiceChip>
               ))}
             </div>
           ) : null}
@@ -302,71 +257,8 @@ export function LogForm({
       ) : null}
 
       {kind === "dog" ? (
-        <Field label="What was done?">
-          <div className="flex flex-wrap gap-2">
-            {SERVICES.map((item) => (
-              <Chip key={item} pressed={service === item} onClick={() => setService(item)}>
-                {item}
-              </Chip>
-            ))}
-          </div>
-          {service === "Other" ? (
-            <Input
-              value={customService}
-              onChange={(event) => setCustomService(event.target.value)}
-              placeholder="What was it?"
-              maxLength={80}
-              autoComplete="off"
-              className={fieldClass}
-            />
-          ) : null}
-        </Field>
-      ) : null}
-
-      {kind === "dog" ? (
-        <Field label="How many?">
-          <input type="hidden" name="quantity" value={quantity} />
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="size-14 rounded-2xl text-2xl"
-              onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-              aria-label="Fewer"
-            >
-              −
-            </Button>
-            <span className="w-12 text-center text-2xl font-semibold tabular-nums">{quantity}</span>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-14 rounded-2xl text-2xl"
-              onClick={() => setQuantity((value) => Math.min(20, value + 1))}
-              aria-label="More"
-            >
-              +
-            </Button>
-          </div>
-        </Field>
-      ) : null}
-
-      {kind === "dog" ? (
-        <Field label="How long?" hint="Optional.">
-          <input type="hidden" name="durationMins" value={duration} />
-          <div className="flex flex-wrap gap-2">
-            <Chip pressed={duration === ""} onClick={() => setDuration("")}>
-              No set time
-            </Chip>
-            {DURATIONS.map((minutes) => (
-              <Chip
-                key={minutes}
-                pressed={duration === String(minutes)}
-                onClick={() => setDuration(String(minutes))}
-              >
-                {minutes} min
-              </Chip>
-            ))}
-          </div>
+        <Field label="Which days?" hint="Tap a day to add or remove it. Each walk is 30 minutes.">
+          <WalkCalendar today={today} />
         </Field>
       ) : null}
 
@@ -374,9 +266,9 @@ export function LogForm({
         <Field label="What sort of note?">
           <div className="flex flex-wrap gap-2">
             {NOTE_CATEGORIES.map((item) => (
-              <Chip key={item} pressed={category === item} onClick={() => setCategory(item)}>
+              <ChoiceChip key={item} pressed={category === item} onClick={() => setCategory(item)}>
                 {item}
-              </Chip>
+              </ChoiceChip>
             ))}
           </div>
           {category === "Other" ? (
@@ -416,7 +308,10 @@ export function LogForm({
         />
       </Field>
 
-      <Field label="Date">
+      <Field
+        label={kind === "dog" ? "Logged on" : "Date"}
+        hint={kind === "dog" ? "The day you are writing this down." : undefined}
+      >
         <Input type="date" name="happenedOn" defaultValue={today} min={minDate} max={today} required className={fieldClass} />
       </Field>
 

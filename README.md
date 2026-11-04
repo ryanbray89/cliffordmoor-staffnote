@@ -1,6 +1,6 @@
 # Clifford Moor Farm — Staff Note
 
-A phone-first log for the kennel team at Clifford Moor Farm Pet Hotel. Staff tap their name and record extra jobs, extra dog work, or a note for Ryan. The office is where those logs are read, marked, replied to, and exported for billing.
+A phone-first log for the kennel team at Clifford Moor Farm Pet Hotel. Staff tap their name and record extra jobs, extra walks, or a note for Ryan. The office is where those logs are read, marked, replied to, and exported for billing.
 
 There are no staff logins. The office is locked with a PIN.
 
@@ -8,9 +8,10 @@ There are no staff logins. The office is locked with a PIN.
 
 Open the app, tap a name, and this phone remembers it. Three logs:
 
-- **Extra job** — something done around the site, or something that still needs doing.
-- **Extra dog work** — an extra walk, medication, bath, nail trim, or similar, against a dog. Optional owner, kennel, quantity, and time.
+- **Extra job** — one or more yard jobs from the list (walls, paths, restock, and so on), or one you type yourself. Mark it done, or still to do.
+- **Extra walk** — a 30 minute walk for one dog. Pick the days on a calendar. Optional owner and kennel.
 - **Note for Ryan** — an issue, maintenance, a customer comment, or a concern. Can be marked urgent, and can include a photo.
+- **Shopping list** — something the yard needs to buy. Everyone sees the open list, and can mark an item as got.
 
 Replies from the office show on that person’s screen the next time they open the app.
 
@@ -21,8 +22,9 @@ Replies from the office show on that person’s screen the next time they open t
 - Read the inbox, with a count of anything still **New**.
 - Filter by type, status, team member, dog, date, billing (charged / not charged), and jobs that still need doing.
 - Mark each log **New**, **Seen**, or **Done**. Replying marks a new log as seen.
-- Mark dog work **Charged** or **Not charged**.
+- Mark an extra walk **Charged** or **Not charged**.
 - Reply. The reply shows on the yard screen under that person’s name, as from Ryan.
+- Open **Shopping** to see what still needs buying, mark it bought, or delete it.
 - Download a CSV of the current view (or everything, from the nav). Dates are UK format, times are Europe/London, and the file opens in Excel.
 - Add, rename, hide, and reorder the team. Hidden names stay on old logs.
 
@@ -64,7 +66,9 @@ Leave both Supabase variables empty to use the local file store. Set both, or ne
 In the Supabase SQL editor, run:
 
 1. `supabase/migrations/001_init.sql` — tables, the updated-at trigger, locked-down row level security, and a private Storage bucket named `entry-photos`.
-2. `supabase/seed.sql` — optional. Adds Ryan, Jordanna, and the sample logs. Safe to run twice.
+2. `supabase/migrations/002_walk_days.sql` — `walk_dates` on each log, and a longer title so an extra job can name several tasks. Safe to run twice.
+3. `supabase/migrations/003_shopping.sql` — the shopping list table. Safe to run twice. Run it after 002.
+4. `supabase/seed.sql` — optional. Adds Ryan, Jordanna, and the sample logs. Run it after the migrations. Safe to run twice.
 
 If the bucket insert does not apply, create a **private** bucket called `entry-photos` in Storage yourself.
 

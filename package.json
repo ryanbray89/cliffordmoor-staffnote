@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 43123",
     "lint": "eslint",
-    "test": "tsx --test src/lib/time.test.ts src/lib/csv.test.ts src/lib/filters.test.ts src/lib/validate.test.ts src/lib/photo.test.ts src/lib/office-cookie.test.ts src/lib/store/local.test.ts"
+    "test": "tsx --test src/lib/time.test.ts src/lib/csv.test.ts src/lib/filters.test.ts src/lib/validate.test.ts src/lib/shopping.test.ts src/lib/photo.test.ts src/lib/office-cookie.test.ts src/lib/store/local.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

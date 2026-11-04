@@ -1,4 +1,12 @@
-import { DURATIONS } from "@/lib/catalog";
+import {
+  JOB_TASKS,
+  MAX_TITLE_LENGTH,
+  MAX_WALK_DAYS,
+  WALK_FUTURE_DAYS,
+  WALK_MINUTES,
+  WALK_PAST_DAYS,
+  WALK_TITLE,
+} from "@/lib/catalog";
 import { isIsoDate, shiftCivilDate } from "@/lib/time";
 import type { EntryType, JobState, NewEntry } from "@/lib/types";
 
@@ -11,8 +19,9 @@ export type RawEntry = {
   kennel: string;
   area: string;
   jobState: string;
-  quantity: string;
-  durationMins: string;
+  jobTasks: string[];
+  jobOther: string;
+  walkDates: string[];
   urgent: boolean;
   happenedOn: string;
 };
@@ -37,6 +46,44 @@ export function cleanPersonName(value: string): string | null {
   return name;
 }
 
+function buildJobTitle(
+  tasks: string[],
+  other: string,
+): { ok: true; title: string } | { ok: false; error: string } {
+  const picked = new Set(tasks.map((task) => task.trim()).filter(Boolean));
+  const ordered: string[] = JOB_TASKS.filter((task) => picked.has(task));
+  const custom = line(other, 80);
+  if (custom && !ordered.includes(custom)) ordered.push(custom);
+  if (ordered.length === 0) return { ok: false, error: "Say what the job is." };
+  const title = ordered.join("\n");
+  if (title.length > MAX_TITLE_LENGTH) {
+    return { ok: false, error: "That is too many jobs for one log. Split it into two." };
+  }
+  return { ok: true, title };
+}
+
+function selectWalkDates(
+  values: string[],
+  today: string,
+): { ok: true; dates: string[] } | { ok: false; error: string } {
+  const dates: string[] = [];
+  for (const value of values) {
+    const day = value.trim();
+    if (!day) continue;
+    if (!isIsoDate(day)) return { ok: false, error: "Choose the days to walk." };
+    if (!dates.includes(day)) dates.push(day);
+  }
+  dates.sort();
+  if (dates.length === 0) return { ok: false, error: "Choose the days to walk." };
+  if (dates.length > MAX_WALK_DAYS) return { ok: false, error: "You can pick up to 20 days." };
+  const earliest = shiftCivilDate(today, -WALK_PAST_DAYS);
+  const latest = shiftCivilDate(today, WALK_FUTURE_DAYS);
+  if (dates.some((day) => day < earliest || day > latest)) {
+    return { ok: false, error: "Choose days from the last 30 days or the next 60 days." };
+  }
+  return { ok: true, dates };
+}
+
 export function validateEntry(
   raw: RawEntry,
   ctx: { today: string },
@@ -58,19 +105,13 @@ export function validateEntry(
     return { ok: false, error: "That date is too far back. Use the last 14 days." };
   }
 
-  const title = line(raw.title, 80);
+  let title = line(raw.title, 80);
   const detail = prose(raw.detail, 1000);
   const dogName = emptyToNull(line(raw.dogName, 60));
   const ownerName = emptyToNull(line(raw.ownerName, 80));
   const kennel = emptyToNull(line(raw.kennel, 12));
   const area = emptyToNull(line(raw.area, 40));
 
-  if (type === "extra_job" && !title) {
-    return { ok: false, error: "Say what the job is." };
-  }
-  if (type === "extra_dog_work" && !title) {
-    return { ok: false, error: "Say what was done." };
-  }
   if (type === "extra_dog_work" && !dogName) {
     return { ok: false, error: "Add the dog's name." };
   }
@@ -83,28 +124,25 @@ export function validateEntry(
 
   let jobState: JobState | null = null;
   if (type === "extra_job") {
+    const built = buildJobTitle(raw.jobTasks, raw.jobOther);
+    if (!built.ok) return built;
+    title = built.title;
     if (raw.jobState !== "done" && raw.jobState !== "needs_doing") {
       return { ok: false, error: "Say whether it is done or still needs doing." };
     }
     jobState = raw.jobState;
   }
 
+  let walkDates: string[] | null = null;
   let quantity: number | null = null;
-  if (type === "extra_dog_work") {
-    const parsed = Number(raw.quantity || "1");
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 20) {
-      return { ok: false, error: "Quantity needs to be between 1 and 20." };
-    }
-    quantity = parsed;
-  }
-
   let durationMins: number | null = null;
-  if (type === "extra_dog_work" && raw.durationMins.trim()) {
-    const parsed = Number(raw.durationMins);
-    if (!(DURATIONS as readonly number[]).includes(parsed)) {
-      return { ok: false, error: "Choose one of the times, or leave it blank." };
-    }
-    durationMins = parsed;
+  if (type === "extra_dog_work") {
+    const selected = selectWalkDates(raw.walkDates, ctx.today);
+    if (!selected.ok) return selected;
+    walkDates = selected.dates;
+    quantity = selected.dates.length;
+    durationMins = WALK_MINUTES;
+    title = WALK_TITLE;
   }
 
   const entryType = type as EntryType;
@@ -121,6 +159,7 @@ export function validateEntry(
       jobState,
       quantity,
       durationMins,
+      walkDates,
       urgent: raw.urgent,
       happenedOn,
     },

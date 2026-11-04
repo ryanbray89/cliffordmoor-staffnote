@@ -17,8 +17,9 @@ function entry(overrides: Partial<Entry> = {}): Entry {
     kennel: "12",
     area: null,
     jobState: null,
-    quantity: 1,
+    quantity: 2,
     durationMins: 30,
+    walkDates: ["2026-11-02", "2026-11-03"],
     urgent: false,
     happenedOn: "2026-11-02",
     status: "new",
@@ -45,7 +46,9 @@ describe("CSV export", () => {
     const csv = toCsv([entry()]);
     assert.ok(csv.startsWith("\uFEFFDate,Logged at,Type"));
     assert.match(csv, /"Said ""lovely"", then shook"/);
-    assert.match(csv, /Extra dog work/);
+    assert.match(csv, /Extra walk/);
+    assert.match(csv, /Quantity,Walk days,Minutes/);
+    assert.match(csv, /02\/11\/2026; 03\/11\/2026/);
     assert.match(csv, /02\/11\/2026/);
     assert.match(csv, /Ryan: Charge the bath/);
     assert.match(csv, /,No,/);
@@ -61,6 +64,7 @@ describe("CSV export", () => {
         kennel: null,
         quantity: null,
         durationMins: null,
+        walkDates: null,
         charged: null,
         replies: [],
         detail: "Heater off",
