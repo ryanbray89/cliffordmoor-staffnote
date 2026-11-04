@@ -57,7 +57,53 @@ export const JOB_GROUPS = [
   ["Restock (dry/meat/litter/cleaning fluids)"],
 ] as const;
 
-export const JOB_TASKS: readonly string[] = JOB_GROUPS.flat();
+export type JobTask = (typeof JOB_GROUPS)[number][number];
+
+export const JOB_TASKS: readonly JobTask[] = JOB_GROUPS.flat();
+
+export type JobEvery = "day" | "week" | "fortnight" | "month" | "twice-a-week";
+
+export type JobRule = {
+  every: JobEvery;
+  season?: "october-april";
+};
+
+export const JOB_FREQUENCY = {
+  "Outside walls": { every: "fortnight" },
+  "Inside walls and doors": { every: "week" },
+  "Paths (cattery, kennels, beds, scoops)": { every: "week" },
+  "Wipe/tidy": { every: "week" },
+  Cupboards: { every: "week" },
+  Fridge: { every: "week" },
+  "Scrub plastics outside walls/paths": { every: "week" },
+  "Vaccination cards": { every: "week" },
+  "Wipe heaters": { every: "fortnight", season: "october-april" },
+  "Cobwebs (not during shift)": { every: "fortnight" },
+  "Clean sink and tiles": { every: "twice-a-week" },
+  Newspapers: { every: "fortnight" },
+  "Clean food bins": { every: "week" },
+  "Tidy back room (sweep/mop/shelves/recycling)": { every: "day" },
+  "Set up kennels/catteries": { every: "day" },
+  "Cattery under doors": { every: "week" },
+  "Sellotape on doors": { every: "week" },
+  "Hutches/hutch shed": { every: "month" },
+  "Change poo picker water": { every: "week" },
+  "Clean cat flaps": { every: "fortnight" },
+  "Bleach or pressure wash paths": { every: "month" },
+  "Restock (dry/meat/litter/cleaning fluids)": { every: "day" },
+} satisfies Record<JobTask, JobRule>;
+
+const JOB_RULES: Record<JobTask, JobRule> = JOB_FREQUENCY;
+
+export function jobFrequencyLabel(task: JobTask): string {
+  const rule = JOB_RULES[task];
+  if (rule.season === "october-april") return "Fortnightly, October to April";
+  if (rule.every === "day") return "Daily";
+  if (rule.every === "week") return "Weekly";
+  if (rule.every === "fortnight") return "Fortnightly";
+  if (rule.every === "month") return "Monthly";
+  return "Twice a week";
+}
 
 export const AREAS = [
   "Kennel block",

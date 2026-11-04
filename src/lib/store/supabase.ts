@@ -315,6 +315,24 @@ export function createSupabaseStore(): Store {
       return ((data ?? []) as EntryRow[]).map(mapEntry);
     },
 
+    async listJobLogs() {
+      const { data, error } = await db
+        .from("entries")
+        .select("title, staff_name, happened_on, created_at")
+        .eq("type", "extra_job")
+        .order("happened_on", { ascending: false })
+        .limit(5000);
+      if (error) fail(error);
+      return ((data ?? []) as { title: string; staff_name: string; happened_on: string; created_at: string }[]).map(
+        (row) => ({
+          title: row.title,
+          staffName: row.staff_name,
+          happenedOn: row.happened_on,
+          createdAt: row.created_at,
+        }),
+      );
+    },
+
     async updateEntry(id, patch) {
       const current = await loadEntry(id);
       const update: { status?: EntryStatus; charged?: boolean; updated_at: string } = {

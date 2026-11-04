@@ -7,6 +7,8 @@ import { AREAS, MAX_PHOTO_BYTES, NOTE_CATEGORIES, WALK_TITLE } from "@/lib/catal
 import { compressPhoto } from "@/lib/compress-photo";
 import { ChoiceChip } from "@/components/choice-chip";
 import { JobPicker } from "@/components/job-picker";
+import type { JobTask } from "@/lib/catalog";
+import type { StaffJobChip } from "@/lib/job-schedule";
 import { WalkCalendar } from "@/components/walk-calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,11 +152,13 @@ export function LogForm({
   today,
   minDate,
   recentDogs,
+  jobStatus,
 }: {
   kind: "job" | "dog" | "note";
   today: string;
   minDate: string;
   recentDogs: string[];
+  jobStatus?: Record<JobTask, StaffJobChip>;
 }) {
   const [state, action, pending] = useActionState(createEntry, {});
   const [category, setCategory] = useState("");
@@ -171,7 +175,7 @@ export function LogForm({
       <input type="hidden" name="type" value={entryType} />
       <input type="hidden" name="title" value={kind === "job" ? "" : submittedTitle} />
 
-      {kind === "job" ? <JobPicker /> : null}
+      {kind === "job" && jobStatus ? <JobPicker status={jobStatus} /> : null}
 
       {kind === "job" ? (
         <Field label="Where on the yard?" hint="Optional.">

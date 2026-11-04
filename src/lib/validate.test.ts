@@ -96,7 +96,7 @@ describe("validateEntry", () => {
       assert.equal(done.value.durationMins, null);
       assert.equal(done.value.title, ["Outside walls", "Fridge", "Fix the hose"].join("\n"));
     }
-    assert.equal(JOB_TASKS.includes("Muck out"), false);
+    assert.equal(new Set<string>(JOB_TASKS).has("Muck out"), false);
     assert.equal(JOB_TASKS[0], "Outside walls");
     assert.equal(JOB_TASKS.at(-1), "Restock (dry/meat/litter/cleaning fluids)");
   });

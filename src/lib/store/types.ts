@@ -1,3 +1,4 @@
+import type { JobLog } from "@/lib/job-schedule";
 import type { NewShoppingItem, ShoppingItem } from "@/lib/shopping";
 import type { Entry, Filters, NewEntry, Staff } from "@/lib/types";
 
@@ -15,6 +16,7 @@ export type Store = {
   moveStaff(id: string, direction: "up" | "down"): Promise<void>;
   createEntry(input: NewEntry): Promise<Entry>;
   listEntries(filters: Filters, limit?: number): Promise<Entry[]>;
+  listJobLogs(): Promise<JobLog[]>;
   updateEntry(id: string, patch: { status?: Entry["status"]; charged?: boolean }): Promise<Entry>;
   addReply(entryId: string, authorName: string, body: string): Promise<Entry>;
   deleteEntry(id: string): Promise<void>;

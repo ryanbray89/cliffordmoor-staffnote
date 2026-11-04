@@ -275,6 +275,21 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
       });
     },
 
+    async listJobLogs() {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        return db.entries
+          .filter((entry) => entry.type === "extra_job")
+          .map((entry) => ({
+            title: entry.title,
+            staffName: entry.staffName,
+            happenedOn: entry.happenedOn,
+            createdAt: entry.createdAt,
+          }))
+          .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn) || b.createdAt.localeCompare(a.createdAt));
+      });
+    },
+
     async updateEntry(id, patch) {
       return withLock(dir, async () => {
         const db = await readDb(dir);
