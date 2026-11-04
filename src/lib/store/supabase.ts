@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ShoppingItem } from "@/lib/shopping";
 import { readWalkDates } from "@/lib/walk-dates";
+import { joinWalkPlan, type WalkDayRecord, type WalkDogRecord } from "@/lib/walks";
 import type { Entry, EntryStatus, Filters, NewEntry, Reply, Staff } from "@/lib/types";
 import type { Store } from "@/lib/store/types";
 
@@ -65,6 +66,11 @@ type EntryRow = {
 
 function fail(error: { message: string; code?: string }): never {
   console.error(error);
+  if (/walk_dogs|walk_days/i.test(error.message)) {
+    throw new Error(
+      "The walk plan is not there yet. Run supabase/migrations/004_walk_plan.sql in the SQL editor, then refresh.",
+    );
+  }
   if (/shopping_items/i.test(error.message)) {
     throw new Error(
       "The shopping list is not there yet. Run supabase/migrations/003_shopping.sql in the SQL editor, then refresh.",
@@ -331,6 +337,137 @@ export function createSupabaseStore(): Store {
           createdAt: row.created_at,
         }),
       );
+    },
+
+    async listWalkPlan() {
+      const { data, error } = await db.from("walk_dogs").select("*, walk_days(*)");
+      if (error) fail(error);
+      const rows = (data ?? []) as Array<{
+        id: string;
+        dog_name: string;
+        note: string | null;
+        created_by_name: string | null;
+        created_at: string;
+        active: boolean;
+        walk_days?: Array<{
+          id: string;
+          walk_dog_id: string;
+          walk_date: string;
+          done_at: string | null;
+          done_by: string | null;
+          done_by_name: string | null;
+        }> | null;
+      }>;
+      const dogs: WalkDogRecord[] = [];
+      const days: WalkDayRecord[] = [];
+      for (const row of rows) {
+        dogs.push({
+          id: row.id,
+          dogName: row.dog_name,
+          note: row.note,
+          createdByName: row.created_by_name?.trim() || "Someone",
+          createdAt: row.created_at,
+          active: row.active,
+        });
+        for (const day of row.walk_days ?? []) {
+          days.push({
+            id: day.id,
+            walkDogId: day.walk_dog_id,
+            walkDate: day.walk_date,
+            doneAt: day.done_at,
+            doneBy: day.done_by,
+            doneByName: day.done_by_name,
+          });
+        }
+      }
+      return joinWalkPlan(dogs, days);
+    },
+
+    async addWalkDog(input) {
+      const { data, error } = await db
+        .from("walk_dogs")
+        .insert({
+          dog_name: input.dogName,
+          note: input.note,
+          created_by_name: input.createdByName,
+          active: true,
+        })
+        .select("id, created_at")
+        .single();
+      if (error) fail(error);
+      const dog = data as { id: string; created_at: string };
+      if (input.dates.length > 0) {
+        const inserted = await db.from("walk_days").insert(
+          input.dates.map((walkDate) => ({
+            walk_dog_id: dog.id,
+            walk_date: walkDate,
+          })),
+        );
+        if (inserted.error) {
+          await db.from("walk_dogs").delete().eq("id", dog.id);
+          fail(inserted.error);
+        }
+      }
+      const plan = await this.listWalkPlan();
+      const created = plan.find((item) => item.id === dog.id);
+      if (!created) throw new Error("missing");
+      return created;
+    },
+
+    async updateWalkDog(id, input) {
+      const existing = await db.from("walk_dogs").select("id, active").eq("id", id).maybeSingle();
+      if (existing.error) fail(existing.error);
+      if (!existing.data || !(existing.data as { active: boolean }).active) throw new Error("missing");
+      const updated = await db.from("walk_dogs").update({ dog_name: input.dogName, note: input.note }).eq("id", id);
+      if (updated.error) fail(updated.error);
+      const current = await db.from("walk_days").select("id, walk_date").eq("walk_dog_id", id);
+      if (current.error) fail(current.error);
+      const rows = (current.data ?? []) as { id: string; walk_date: string }[];
+      const keep = new Set(input.dates);
+      const remove = rows.filter((row) => !keep.has(row.walk_date)).map((row) => row.id);
+      if (remove.length > 0) {
+        const deleted = await db.from("walk_days").delete().in("id", remove);
+        if (deleted.error) fail(deleted.error);
+      }
+      const have = new Set(rows.map((row) => row.walk_date));
+      const add = input.dates.filter((date) => !have.has(date));
+      if (add.length > 0) {
+        const inserted = await db.from("walk_days").insert(add.map((walkDate) => ({ walk_dog_id: id, walk_date: walkDate })));
+        if (inserted.error) fail(inserted.error);
+      }
+      const plan = await this.listWalkPlan();
+      const dog = plan.find((item) => item.id === id);
+      if (!dog) throw new Error("missing");
+      return dog;
+    },
+
+    async removeWalkDog(id) {
+      const { error } = await db.from("walk_dogs").update({ active: false }).eq("id", id);
+      if (error) fail(error);
+    },
+
+    async markWalkDone(dayId, actor) {
+      const current = await db.from("walk_days").select("done_at").eq("id", dayId).maybeSingle();
+      if (current.error) fail(current.error);
+      if (!current.data) throw new Error("missing");
+      if ((current.data as { done_at: string | null }).done_at) return;
+      const { error } = await db
+        .from("walk_days")
+        .update({
+          done_at: new Date().toISOString(),
+          done_by: actor.staffId,
+          done_by_name: actor.name,
+        })
+        .eq("id", dayId);
+      if (error) fail(error);
+    },
+
+    async undoWalk(dayId) {
+      const { error } = await db
+        .from("walk_days")
+        .update({ done_at: null, done_by: null, done_by_name: null })
+        .eq("id", dayId);
+      if (error) fail(error);
     },
 
     async updateEntry(id, patch) {

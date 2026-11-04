@@ -37,13 +37,17 @@ function mondayOffset(monthKey: string): number {
   return (weekday + 6) % 7;
 }
 
-export function WalkCalendar({ today }: { today: string }) {
+export function WalkCalendar({ today, initialDays = [] }: { today: string; initialDays?: string[] }) {
   const earliest = shiftCivilDate(today, -WALK_PAST_DAYS);
   const latest = shiftCivilDate(today, WALK_FUTURE_DAYS);
   const minMonth = earliest.slice(0, 7);
   const maxMonth = latest.slice(0, 7);
-  const [month, setMonth] = useState(() => today.slice(0, 7));
-  const [selection, setSelection] = useState<{ days: string[]; note: string }>({ days: [], note: "" });
+  const startingDays = [...new Set(initialDays)].filter(Boolean).sort();
+  const [month, setMonth] = useState(() => (startingDays[0] ?? today).slice(0, 7));
+  const [selection, setSelection] = useState<{ days: string[]; note: string }>({
+    days: startingDays,
+    note: "",
+  });
 
   function toggle(iso: string) {
     setSelection((current) => {

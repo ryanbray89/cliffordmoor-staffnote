@@ -46,6 +46,7 @@ export async function generateMetadata({
 export default async function LogPage({ params }: { params: Promise<{ type: string }> }) {
   const { type } = await params;
   if (!isKind(type)) notFound();
+  if (type === "dog") redirect("/walks");
 
   const staff = await getCurrentStaff();
   if (!staff) redirect("/?needName=1");
