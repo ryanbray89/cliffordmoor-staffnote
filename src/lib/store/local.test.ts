@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -30,6 +30,10 @@ describe("local store", () => {
     const entries = await store.listEntries(EMPTY_FILTERS);
     assert.equal(entries.length, 7);
     assert.equal(await store.countNew(), 4);
+    const walk = entries.find((entry) => entry.id === SEED_IDS.walk);
+    assert.equal(walk?.durationMins, 30);
+    assert.equal(walk?.quantity, 2);
+    assert.deepEqual(walk?.walkDates?.length, 2);
     const thanks = entries.find((entry) => entry.id === SEED_IDS.thanks);
     assert.equal(thanks?.replies[0]?.body, "Lovely. I'll mention it when they collect.");
   });
@@ -40,15 +44,16 @@ describe("local store", () => {
       type: "extra_dog_work",
       staffId: SEED_IDS.jordanna,
       staffName: "Jordanna",
-      title: "Nail trim",
-      detail: "Front nails.",
+      title: "Extra walk",
+      detail: "Front field.",
       dogName: "Pip",
       ownerName: null,
       kennel: "3",
       area: null,
       jobState: null,
-      quantity: 1,
-      durationMins: 15,
+      quantity: 2,
+      durationMins: 30,
+      walkDates: ["2026-11-04", "2026-11-02"],
       urgent: false,
       happenedOn: londonToday(),
       photo: {
@@ -59,6 +64,9 @@ describe("local store", () => {
     });
     assert.equal(created.status, "new");
     assert.equal(created.charged, false);
+    assert.deepEqual(created.walkDates, ["2026-11-02", "2026-11-04"]);
+    assert.equal(created.quantity, 2);
+    assert.equal(created.durationMins, 30);
     assert.equal(created.hasPhoto, true);
     const photo = await store.getPhoto(created.id);
     assert.equal(photo?.contentType, "image/jpeg");
@@ -107,6 +115,7 @@ describe("local store", () => {
       jobState: null,
       quantity: null,
       durationMins: null,
+      walkDates: null,
       urgent: true,
       happenedOn: londonToday(),
       photo: null,
@@ -116,5 +125,70 @@ describe("local store", () => {
     const left = await store.listEntries(EMPTY_FILTERS);
     assert.equal(left.some((entry) => entry.id === kept.id), true);
     assert.equal(left.some((entry) => entry.sample), false);
+  });
+
+  it("reads logs saved before walk days existed", async () => {
+    const file = path.join(dir, "staff-note.json");
+    const db = JSON.parse(await readFile(file, "utf8")) as { entries: Array<Record<string, unknown>> };
+    const legacy = {
+      id: "33333333-3333-4333-8333-333333333399",
+      type: "extra_dog_work",
+      staffId: SEED_IDS.jordanna,
+      staffName: "Jordanna",
+      title: "Bath",
+      detail: "Old log",
+      dogName: "Bramble",
+      ownerName: null,
+      kennel: "12",
+      area: null,
+      jobState: null,
+      quantity: 1,
+      durationMins: 30,
+      urgent: false,
+      happenedOn: "2026-11-02",
+      status: "new",
+      charged: false,
+      sample: false,
+      photoPath: null,
+      photoContentType: null,
+      createdAt: "2026-11-02T12:00:00.000Z",
+      updatedAt: "2026-11-02T12:00:00.000Z",
+    };
+    db.entries.push(legacy);
+    await writeFile(file, JSON.stringify(db));
+    const store = createLocalStore(dir);
+    const found = (await store.listEntries(EMPTY_FILTERS)).find((entry) => entry.id === legacy.id);
+    assert.equal(found?.title, "Bath");
+    assert.equal(found?.walkDates, null);
+    assert.equal(found?.quantity, 1);
+  });
+
+  it("keeps a shopping list and still opens a book from before it existed", async () => {
+    const store = createLocalStore(dir);
+    const added = await store.addShopping({
+      item: "Poop bags",
+      quantity: "2 boxes",
+      note: null,
+      addedBy: SEED_IDS.jordanna,
+      addedByName: "Jordanna",
+    });
+    assert.equal(added.status, "needed");
+    const open = await store.listShopping();
+    assert.equal(open[0]?.item, "Poop bags");
+    assert.equal(open[0]?.addedByName, "Jordanna");
+
+    const bought = await store.markShoppingBought(added.id, "Ryan");
+    assert.equal(bought.status, "bought");
+    assert.equal(bought.boughtByName, "Ryan");
+    assert.ok(bought.boughtAt);
+
+    await store.deleteShopping(added.id);
+    assert.equal((await store.listShopping()).some((item) => item.id === added.id), false);
+
+    const file = path.join(dir, "staff-note.json");
+    const db = JSON.parse(await readFile(file, "utf8")) as { shopping?: unknown };
+    delete db.shopping;
+    await writeFile(file, JSON.stringify(db));
+    assert.deepEqual(await store.listShopping(), []);
   });
 });

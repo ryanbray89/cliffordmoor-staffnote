@@ -20,6 +20,11 @@ function chargedLabel(entry: Entry): string {
   return "";
 }
 
+function walkDayCell(entry: Entry): string {
+  if (!entry.walkDates || entry.walkDates.length === 0) return "";
+  return entry.walkDates.map((date) => formatCsvDate(date)).join("; ");
+}
+
 function replyCell(entry: Entry): string {
   return entry.replies
     .map((reply) => `${reply.authorName}: ${reply.body} (${formatStamp(reply.createdAt)})`)
@@ -39,6 +44,7 @@ const HEADERS = [
   "Area",
   "Job",
   "Quantity",
+  "Walk days",
   "Minutes",
   "Urgent",
   "Status",
@@ -63,6 +69,7 @@ export function toCsv(entries: Entry[]): string {
         entry.area ?? "",
         jobLabel(entry),
         entry.quantity ?? "",
+        walkDayCell(entry),
         entry.durationMins ?? "",
         entry.urgent ? "Yes" : "No",
         STATUS_LABEL[entry.status],

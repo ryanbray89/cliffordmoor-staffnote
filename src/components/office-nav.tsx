@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 export function OfficeNav({ newCount }: { newCount: number }) {
   const pathname = usePathname();
   const inbox = pathname === "/admin";
+  const shopping = pathname.startsWith("/admin/shopping");
   const team = pathname.startsWith("/admin/team");
 
   return (
@@ -31,6 +32,16 @@ export function OfficeNav({ newCount }: { newCount: number }) {
         >
           {newCount}
         </span>
+      </Link>
+      <Link
+        href="/admin/shopping"
+        className={buttonVariants({
+          variant: shopping ? "default" : "outline",
+          className: "h-11 rounded-full px-4",
+        })}
+        aria-current={shopping ? "page" : undefined}
+      >
+        Shopping
       </Link>
       <Link
         href="/admin/team"

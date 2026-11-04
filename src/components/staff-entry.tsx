@@ -1,10 +1,12 @@
-import { STATUS_LABEL, TYPE_LABEL } from "@/lib/catalog";
+import { STATUS_LABEL, TYPE_LABEL, jobLines } from "@/lib/catalog";
 import { dayLabel, formatLogged, londonToday } from "@/lib/time";
 import type { Entry } from "@/lib/types";
+import { WalkDays } from "@/components/walk-days";
 
 export function StaffEntry({ entry }: { entry: Entry }) {
-  const headline =
-    entry.type === "extra_dog_work" ? `${entry.title} for ${entry.dogName}` : entry.type === "note" ? entry.title : entry.title;
+  const lines = jobLines(entry.title);
+  const single =
+    entry.type === "extra_dog_work" ? `${entry.title} for ${entry.dogName}` : lines.length <= 1 ? lines[0] : "";
   return (
     <article className="rounded-2xl bg-card px-4 py-4 shadow-sm ring-1 ring-border">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -16,7 +18,36 @@ export function StaffEntry({ entry }: { entry: Entry }) {
           <span className="text-muted-foreground">{entry.charged ? "Charged" : "To charge"}</span>
         ) : null}
       </div>
-      <h3 className="mt-1 text-lg font-semibold">{headline}</h3>
+      {single ? (
+        <h3 className="mt-1 text-lg font-semibold">{single}</h3>
+      ) : (
+        <ul className="mt-1 flex flex-col gap-1">
+          {lines.map((line) => (
+            <li key={line} className="text-lg font-semibold">
+              {line}
+            </li>
+          ))}
+        </ul>
+      )}
+      {entry.type === "extra_dog_work" ? (
+        <p className="text-sm text-muted-foreground">
+          {[
+            entry.walkDates && entry.walkDates.length > 0
+              ? `${entry.walkDates.length} ${entry.walkDates.length === 1 ? "day" : "days"}`
+              : entry.quantity
+                ? `×${entry.quantity}`
+                : "",
+            entry.durationMins ? `${entry.durationMins} min` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
+      {entry.type === "extra_dog_work" && entry.walkDates && entry.walkDates.length > 0 ? (
+        <div className="mt-2">
+          <WalkDays dates={entry.walkDates} />
+        </div>
+      ) : null}
       <p className="text-sm text-muted-foreground">
         {formatLogged(entry.createdAt)}
         {entry.happenedOn && entry.happenedOn !== londonToday(new Date(entry.createdAt))

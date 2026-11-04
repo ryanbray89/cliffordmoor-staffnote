@@ -1,3 +1,4 @@
+import type { ShoppingItem } from "@/lib/shopping";
 import type { Entry, Reply, Staff } from "@/lib/types";
 import { shiftCivilDate, londonToday } from "@/lib/time";
 
@@ -23,15 +24,22 @@ export type Database = {
   staff: Staff[];
   entries: StoredEntry[];
   replies: Reply[];
+  shopping: ShoppingItem[];
 };
 
 function ago(now: Date, minutes: number): string {
   return new Date(now.getTime() - minutes * 60_000).toISOString();
 }
 
-function stored(entry: Omit<StoredEntry, "photoPath" | "photoContentType" | "sample"> & { sample?: boolean }): StoredEntry {
+function stored(
+  entry: Omit<StoredEntry, "photoPath" | "photoContentType" | "sample" | "walkDates"> & {
+    sample?: boolean;
+    walkDates?: string[] | null;
+  },
+): StoredEntry {
   return {
     ...entry,
+    walkDates: entry.walkDates ?? null,
     sample: entry.sample ?? true,
     photoPath: null,
     photoContentType: null,
@@ -179,8 +187,9 @@ export function buildSeed(now = new Date()): Database {
       kennel: "7",
       area: null,
       jobState: null,
-      quantity: 1,
-      durationMins: 20,
+      quantity: 2,
+      durationMins: 30,
+      walkDates: [yesterday, today],
       urgent: false,
       happenedOn: yesterday,
       status: "new",
@@ -221,5 +230,5 @@ export function buildSeed(now = new Date()): Database {
     },
   ];
 
-  return { staff, entries, replies };
+  return { staff, entries, replies, shopping: [] };
 }

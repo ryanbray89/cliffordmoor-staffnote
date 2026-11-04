@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import type { ShoppingItem } from "@/lib/shopping";
+import { readWalkDates } from "@/lib/walk-dates";
 import type { Entry, EntryStatus, Filters, NewEntry, Reply, Staff } from "@/lib/types";
 import type { Store } from "@/lib/store/types";
 
@@ -21,6 +23,19 @@ type ReplyRow = {
   created_at: string;
 };
 
+type ShoppingRow = {
+  id: string;
+  item: string;
+  quantity: string | null;
+  note: string | null;
+  added_by: string | null;
+  added_by_name: string | null;
+  status: ShoppingItem["status"];
+  bought_at: string | null;
+  bought_by_name: string | null;
+  created_at: string;
+};
+
 type EntryRow = {
   id: string;
   type: Entry["type"];
@@ -35,6 +50,7 @@ type EntryRow = {
   job_state: Entry["jobState"];
   quantity: number | null;
   duration_mins: number | null;
+  walk_dates?: string[] | string | null;
   urgent: boolean;
   happened_on: string;
   status: EntryStatus;
@@ -49,6 +65,16 @@ type EntryRow = {
 
 function fail(error: { message: string; code?: string }): never {
   console.error(error);
+  if (/shopping_items/i.test(error.message)) {
+    throw new Error(
+      "The shopping list is not there yet. Run supabase/migrations/003_shopping.sql in the SQL editor, then refresh.",
+    );
+  }
+  if (error.code === "42703" || /walk_dates/i.test(error.message)) {
+    throw new Error(
+      "The walk days column is not there yet. Run supabase/migrations/002_walk_days.sql in the SQL editor, then refresh.",
+    );
+  }
   if (error.code === "42P01" || /relation .* does not exist/i.test(error.message)) {
     throw new Error(
       "The Supabase tables are not there yet. Run supabase/migrations/001_init.sql in the SQL editor, then refresh.",
@@ -68,6 +94,21 @@ function mapReply(row: ReplyRow): Reply {
     entryId: row.entry_id,
     authorName: row.author_name,
     body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+function mapShopping(row: ShoppingRow): ShoppingItem {
+  return {
+    id: row.id,
+    item: row.item,
+    quantity: row.quantity,
+    note: row.note,
+    addedBy: row.added_by,
+    addedByName: row.added_by_name?.trim() || "Someone",
+    status: row.status === "bought" ? "bought" : "needed",
+    boughtAt: row.bought_at,
+    boughtByName: row.bought_by_name,
     createdAt: row.created_at,
   };
 }
@@ -97,6 +138,7 @@ function mapEntry(row: EntryRow): Entry {
     jobState: row.job_state,
     quantity: row.quantity,
     durationMins: row.duration_mins,
+    walkDates: readWalkDates(row.walk_dates),
     urgent: row.urgent,
     happenedOn: row.happened_on,
     status: row.status,
@@ -204,6 +246,7 @@ export function createSupabaseStore(): Store {
     },
 
     async createEntry(input: NewEntry) {
+      const walkDates = input.type === "extra_dog_work" ? readWalkDates(input.walkDates) : null;
       const { data, error } = await db
         .from("entries")
         .insert({
@@ -217,8 +260,9 @@ export function createSupabaseStore(): Store {
           kennel: input.kennel,
           area: input.area,
           job_state: input.jobState,
-          quantity: input.quantity,
+          quantity: walkDates ? walkDates.length : input.quantity,
           duration_mins: input.durationMins,
+          walk_dates: walkDates,
           urgent: input.urgent,
           happened_on: input.happenedOn,
           status: "new",
@@ -344,6 +388,54 @@ export function createSupabaseStore(): Store {
         .eq("sample", true);
       if (error) fail(error);
       return count ?? 0;
+    },
+
+    async listShopping() {
+      const { data, error } = await db
+        .from("shopping_items")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) fail(error);
+      return ((data ?? []) as ShoppingRow[]).map(mapShopping);
+    },
+
+    async addShopping(input) {
+      const { data, error } = await db
+        .from("shopping_items")
+        .insert({
+          item: input.item,
+          quantity: input.quantity,
+          note: input.note,
+          added_by: input.addedBy,
+          added_by_name: input.addedByName,
+          status: "needed",
+        })
+        .select("*")
+        .single();
+      if (error) fail(error);
+      return mapShopping(data as ShoppingRow);
+    },
+
+    async markShoppingBought(id, boughtByName) {
+      const current = await db.from("shopping_items").select("*").eq("id", id).maybeSingle();
+      if (current.error) fail(current.error);
+      if (!current.data) throw new Error("missing");
+      const row = current.data as ShoppingRow;
+      if (row.status === "bought") return mapShopping(row);
+      const boughtAt = new Date().toISOString();
+      const updated = await db
+        .from("shopping_items")
+        .update({ status: "bought", bought_at: boughtAt, bought_by_name: boughtByName })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updated.error) fail(updated.error);
+      return mapShopping(updated.data as ShoppingRow);
+    },
+
+    async deleteShopping(id) {
+      const { error } = await db.from("shopping_items").delete().eq("id", id);
+      if (error) fail(error);
     },
 
     async getPhoto(entryId) {

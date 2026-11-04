@@ -80,7 +80,7 @@ export default async function InboxPage({
           Jobs
         </Chip>
         <Chip href={patch(filters, { type: "extra_dog_work" })} active={filters.type === "extra_dog_work"}>
-          Dog work
+          Walks
         </Chip>
         <Chip href={patch(filters, { type: "note" })} active={filters.type === "note"}>
           Notes

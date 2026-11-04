@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { OFFICE_AUTHOR } from "@/lib/catalog";
+import { OFFICE_AUTHOR, logLabel } from "@/lib/catalog";
 import { readPhotoFile } from "@/lib/photo";
 import {
   adminConfigured,
@@ -18,6 +18,7 @@ import {
 import { getStore } from "@/lib/store";
 import { londonToday } from "@/lib/time";
 import type { Entry, EntryStatus } from "@/lib/types";
+import { validateShopping } from "@/lib/shopping";
 import { cleanPersonName, validateEntry, type RawEntry } from "@/lib/validate";
 
 function refresh() {
@@ -25,9 +26,8 @@ function refresh() {
 }
 
 function savedSummary(entry: Pick<Entry, "type" | "title" | "dogName">): string {
-  if (entry.type === "extra_dog_work") return `${entry.title} for ${entry.dogName}`;
   if (entry.type === "note") return "Your note";
-  return entry.title;
+  return logLabel(entry);
 }
 
 function friendlySaveError(error: unknown): string {
@@ -35,6 +35,7 @@ function friendlySaveError(error: unknown): string {
   if (
     message.includes("Supabase") ||
     message.includes("tables") ||
+    message.includes("shopping") ||
     message.includes("bucket") ||
     message.includes("damaged") ||
     message.includes("SUPABASE_URL")
@@ -77,8 +78,9 @@ export async function createEntry(
     kennel: String(formData.get("kennel") ?? ""),
     area: String(formData.get("area") ?? ""),
     jobState: String(formData.get("jobState") ?? ""),
-    quantity: String(formData.get("quantity") ?? ""),
-    durationMins: String(formData.get("durationMins") ?? ""),
+    jobTasks: formData.getAll("jobTask").map(String),
+    jobOther: String(formData.get("jobOther") ?? ""),
+    walkDates: formData.getAll("walkDate").map(String),
     urgent: formData.get("urgent") === "1",
     happenedOn: String(formData.get("happenedOn") ?? ""),
   };
@@ -162,6 +164,62 @@ export async function addReply(entryId: string, body: string): Promise<{ error?:
   }
   refresh();
   return {};
+}
+
+export async function addShoppingItem(
+  _previous: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const staff = await getCurrentStaff();
+  if (!staff) redirect("/?needName=1");
+  const validated = validateShopping({
+    item: String(formData.get("item") ?? ""),
+    quantity: String(formData.get("quantity") ?? ""),
+    note: String(formData.get("note") ?? ""),
+  });
+  if (!validated.ok) return { error: validated.error };
+  try {
+    await getStore().addShopping({
+      ...validated.value,
+      addedBy: staff.id,
+      addedByName: staff.name,
+    });
+  } catch (error) {
+    console.error(error);
+    return { error: friendlySaveError(error) };
+  }
+  refresh();
+  redirect("/shopping?saved=1");
+}
+
+export async function markShoppingGot(formData: FormData) {
+  const staff = await getCurrentStaff();
+  if (!staff) redirect("/?needName=1");
+  try {
+    await getStore().markShoppingBought(String(formData.get("id") ?? ""), staff.name);
+  } catch (error) {
+    if (error instanceof Error && error.message === "missing") redirect("/shopping");
+    throw error;
+  }
+  refresh();
+}
+
+export async function markShoppingBought(formData: FormData) {
+  await requireOffice();
+  const id = String(formData.get("id") ?? "");
+  try {
+    await getStore().markShoppingBought(id, OFFICE_AUTHOR);
+  } catch (error) {
+    if (error instanceof Error && error.message === "missing") return;
+    throw error;
+  }
+  refresh();
+}
+
+export async function deleteShoppingItem(formData: FormData) {
+  await requireOffice();
+  await getStore().deleteShopping(String(formData.get("id") ?? ""));
+  refresh();
 }
 
 export async function deleteEntry(formData: FormData) {

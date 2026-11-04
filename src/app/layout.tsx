@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s · Clifford Moor",
   },
   description:
-    "Log extra jobs, extra dog work, and notes for the office at Clifford Moor Farm Pet Hotel.",
+    "Log extra jobs, extra walks, and notes for the office at Clifford Moor Farm Pet Hotel.",
   applicationName: "Staff Note",
   robots: { index: false, follow: false },
   appleWebApp: {

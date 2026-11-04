@@ -3,8 +3,10 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { matchesFilters } from "@/lib/filters";
+import type { ShoppingItem } from "@/lib/shopping";
 import { buildSeed, type Database, type StoredEntry } from "@/lib/seed";
 import type { Entry, Reply, Staff } from "@/lib/types";
+import { readWalkDates } from "@/lib/walk-dates";
 import type { PhotoFile, Store } from "@/lib/store/types";
 
 const locks = new Map<string, Promise<unknown>>();
@@ -51,6 +53,7 @@ function hydrate(db: Database, entry: StoredEntry): Entry {
     jobState: entry.jobState,
     quantity: entry.quantity,
     durationMins: entry.durationMins,
+    walkDates: readWalkDates(entry.walkDates),
     urgent: entry.urgent,
     happenedOn: entry.happenedOn,
     status: entry.status,
@@ -63,6 +66,30 @@ function hydrate(db: Database, entry: StoredEntry): Entry {
       .filter((reply) => reply.entryId === entry.id)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   };
+}
+
+function normalizeShopping(value: unknown): ShoppingItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: ShoppingItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Partial<ShoppingItem>;
+    if (typeof row.id !== "string" || typeof row.item !== "string") continue;
+    if (row.status !== "needed" && row.status !== "bought") continue;
+    items.push({
+      id: row.id,
+      item: row.item,
+      quantity: typeof row.quantity === "string" && row.quantity.length > 0 ? row.quantity : null,
+      note: typeof row.note === "string" && row.note.length > 0 ? row.note : null,
+      addedBy: typeof row.addedBy === "string" ? row.addedBy : null,
+      addedByName: typeof row.addedByName === "string" && row.addedByName.length > 0 ? row.addedByName : "Someone",
+      status: row.status,
+      boughtAt: typeof row.boughtAt === "string" ? row.boughtAt : null,
+      boughtByName: typeof row.boughtByName === "string" ? row.boughtByName : null,
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : "1970-01-01T00:00:00.000Z",
+    });
+  }
+  return items;
 }
 
 function compareStaff(a: Staff, b: Staff): number {
@@ -91,6 +118,7 @@ async function readDb(dir: string): Promise<Database> {
       if (!parsed || !Array.isArray(parsed.staff) || !Array.isArray(parsed.entries) || !Array.isArray(parsed.replies)) {
         throw new Error("shape");
       }
+      parsed.shopping = normalizeShopping(parsed.shopping);
       return parsed;
     } catch {
       throw new Error("The local Staff Note file is damaged. Check data/staff-note.json.");
@@ -204,6 +232,7 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
           await writeFile(photoPath(dir, filename), input.photo.bytes);
           contentType = input.photo.contentType;
         }
+        const walkDates = input.type === "extra_dog_work" ? readWalkDates(input.walkDates) : null;
         const entry: StoredEntry = {
           id,
           type: input.type,
@@ -216,8 +245,9 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
           kennel: input.kennel,
           area: input.area,
           jobState: input.jobState,
-          quantity: input.quantity,
+          quantity: walkDates ? walkDates.length : input.quantity,
           durationMins: input.durationMins,
+          walkDates,
           urgent: input.urgent,
           happenedOn: input.happenedOn,
           status: "new",
@@ -317,6 +347,57 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
       return withLock(dir, async () => {
         const db = await readDb(dir);
         return db.entries.filter((entry) => entry.sample).length;
+      });
+    },
+
+    async listShopping() {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        return [...db.shopping].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      });
+    },
+
+    async addShopping(input) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item: ShoppingItem = {
+          id: randomUUID(),
+          item: input.item,
+          quantity: input.quantity,
+          note: input.note,
+          addedBy: input.addedBy,
+          addedByName: input.addedByName,
+          status: "needed",
+          boughtAt: null,
+          boughtByName: null,
+          createdAt: new Date().toISOString(),
+        };
+        db.shopping.push(item);
+        await writeDb(dir, db);
+        return item;
+      });
+    },
+
+    async markShoppingBought(id, boughtByName) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item = db.shopping.find((entry) => entry.id === id);
+        if (!item) throw new Error("missing");
+        if (item.status !== "bought") {
+          item.status = "bought";
+          item.boughtAt = new Date().toISOString();
+          item.boughtByName = boughtByName;
+          await writeDb(dir, db);
+        }
+        return item;
+      });
+    },
+
+    async deleteShopping(id) {
+      await withLock(dir, async () => {
+        const db = await readDb(dir);
+        db.shopping = db.shopping.filter((entry) => entry.id !== id);
+        await writeDb(dir, db);
       });
     },
 

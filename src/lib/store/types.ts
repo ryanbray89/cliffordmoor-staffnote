@@ -1,3 +1,4 @@
+import type { NewShoppingItem, ShoppingItem } from "@/lib/shopping";
 import type { Entry, Filters, NewEntry, Staff } from "@/lib/types";
 
 export type PhotoFile = {
@@ -21,4 +22,8 @@ export type Store = {
   countNew(): Promise<number>;
   countSample(): Promise<number>;
   getPhoto(entryId: string): Promise<PhotoFile | null>;
+  listShopping(): Promise<ShoppingItem[]>;
+  addShopping(input: NewShoppingItem): Promise<ShoppingItem>;
+  markShoppingBought(id: string, boughtByName: string): Promise<ShoppingItem>;
+  deleteShopping(id: string): Promise<void>;
 };

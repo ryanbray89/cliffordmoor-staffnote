@@ -1,9 +1,9 @@
-import { ChevronRight, ClipboardList, Dog, MessageSquareText } from "lucide-react";
+import { ChevronRight, ClipboardList, Dog, MessageSquareText, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 
 import { chooseStaff, clearStaff } from "@/lib/actions";
 import { openBook } from "@/lib/book";
-import { LOG_PATHS } from "@/lib/catalog";
+import { LOG_PATHS, logLabel } from "@/lib/catalog";
 import { EMPTY_FILTERS, one } from "@/lib/filters";
 import { getCurrentStaff } from "@/lib/session";
 import { formatLongDate, greetingForHour, londonHour, londonToday } from "@/lib/time";
@@ -42,9 +42,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     getCurrentStaff(),
   ]);
 
-  const mine = current
-    ? await book.store.listEntries({ ...EMPTY_FILTERS, staffId: current.id }, 12)
-    : [];
+  let mine: Entry[] = [];
+  let neededCount = 0;
+  if (current) {
+    const [logs, shopping] = await Promise.all([
+      book.store.listEntries({ ...EMPTY_FILTERS, staffId: current.id }, 12),
+      book.store.listShopping(),
+    ]);
+    mine = logs;
+    neededCount = shopping.filter((item) => item.status === "needed").length;
+  }
   const replies = mine
     .filter((entry) => entry.replies.length > 0)
     .sort((a, b) => latestReply(b).createdAt.localeCompare(latestReply(a).createdAt));
@@ -129,7 +136,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   <p className="text-sm font-semibold">Ryan replied</p>
                   <p className="mt-1 text-base">{reply.body}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    On {entry.type === "extra_dog_work" ? `${entry.title} for ${entry.dogName}` : entry.title}
+                    On {logLabel(entry)}
                   </p>
                 </a>
               );
@@ -159,8 +166,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 <Dog className="size-6" />
               </span>
               <span>
-                <span className="block text-lg font-semibold">Extra dog work</span>
-                <span className="block text-sm text-muted-foreground">Walks, meds, baths, nail trims</span>
+                <span className="block text-lg font-semibold">Extra walk</span>
+                <span className="block text-sm text-muted-foreground">A 30 minute walk, on the days you pick</span>
               </span>
             </Link>
             <Link
@@ -173,6 +180,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <span>
                 <span className="block text-lg font-semibold">Note for Ryan</span>
                 <span className="block text-sm text-muted-foreground">Issues, maintenance, customer comments</span>
+              </span>
+            </Link>
+            <Link
+              href="/shopping"
+              className="flex min-h-24 items-center gap-4 rounded-2xl bg-card px-4 py-4 shadow-sm ring-1 ring-border active:bg-accent"
+            >
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-accent text-primary">
+                <ShoppingBasket className="size-6" />
+              </span>
+              <span>
+                <span className="block text-lg font-semibold">Shopping list</span>
+                <span className="block text-sm text-muted-foreground">
+                  {neededCount > 0 ? `${neededCount} still to buy` : "Things the yard needs"}
+                </span>
               </span>
             </Link>
           </section>

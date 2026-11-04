@@ -1,9 +1,10 @@
 import { setCharged, setStatus } from "@/lib/actions";
-import { STATUS_LABEL, TYPE_LABEL } from "@/lib/catalog";
+import { STATUS_LABEL, TYPE_LABEL, jobLines } from "@/lib/catalog";
 import { dayLabel, formatLogged, londonToday } from "@/lib/time";
 import type { Entry, EntryStatus } from "@/lib/types";
 import { RemoveLog } from "@/components/remove-log";
 import { ReplyBox } from "@/components/reply-box";
+import { WalkDays } from "@/components/walk-days";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -39,14 +40,28 @@ export function EntryCard({ entry }: { entry: Entry }) {
             <span className="rounded-full bg-straw px-2.5 py-1 font-semibold text-foreground">Sample</span>
           ) : null}
         </div>
-        <CardTitle className="font-heading text-2xl">{entry.type === "extra_dog_work" ? entry.dogName : entry.title}</CardTitle>
+        {entry.type === "extra_dog_work" ? (
+          <CardTitle className="font-heading text-2xl">{entry.dogName}</CardTitle>
+        ) : jobLines(entry.title).length > 1 ? (
+          <ul className="flex flex-col gap-1">
+            {jobLines(entry.title).map((line) => (
+              <li key={line} className="font-heading text-xl leading-snug">
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <CardTitle className="font-heading text-2xl">{entry.title}</CardTitle>
+        )}
         {entry.type === "extra_dog_work" ? (
           <p className="text-base font-medium">
-            {entry.title}
-            {entry.quantity ? ` · ×${entry.quantity}` : ""}
+            {entry.walkDates && entry.walkDates.length > 0
+              ? `${entry.title} · ${entry.walkDates.length} ${entry.walkDates.length === 1 ? "day" : "days"}`
+              : `${entry.title}${entry.quantity ? ` · ×${entry.quantity}` : ""}`}
             {entry.durationMins ? ` · ${entry.durationMins} min` : ""}
           </p>
         ) : null}
+        {entry.type === "extra_dog_work" ? <WalkDays dates={entry.walkDates} /> : null}
         <Meta entry={entry} />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
