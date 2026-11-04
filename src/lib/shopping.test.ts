@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { sameItemName, validateShopping } from "./shopping";
+import { amazonSearchUrl, sameItemName, validateShopping } from "./shopping";
 
 describe("validateShopping", () => {
   it("keeps a name and an optional quantity and note", () => {
@@ -29,6 +29,19 @@ describe("validateShopping", () => {
       assert.equal(result.value.quantity, null);
       assert.equal(result.value.note, null);
     }
+  });
+
+  it("builds an Amazon search from the item and the quantity", () => {
+    assert.equal(
+      amazonSearchUrl("Poop bags", "2 boxes"),
+      "https://www.amazon.co.uk/s?k=Poop%20bags%202%20boxes",
+    );
+    assert.equal(amazonSearchUrl("Milk", "   "), "https://www.amazon.co.uk/s?k=Milk");
+    assert.equal(amazonSearchUrl("Milk", null), "https://www.amazon.co.uk/s?k=Milk");
+    assert.equal(
+      amazonSearchUrl("Bleach & cloths", "1"),
+      "https://www.amazon.co.uk/s?k=Bleach%20%26%20cloths%201",
+    );
   });
 
   it("matches names without worrying about case", () => {

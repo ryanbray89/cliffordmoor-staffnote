@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 
 import { deleteShoppingItem, markShoppingBought } from "@/lib/actions";
 import { openBook } from "@/lib/book";
+import { amazonSearchUrl } from "@/lib/shopping";
 import { isAdmin } from "@/lib/session";
 import { formatLogged } from "@/lib/time";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Shopping" };
 
@@ -60,6 +61,14 @@ export default async function OfficeShoppingPage() {
                   </Button>
                 </form>
               </div>
+              <a
+                href={amazonSearchUrl(item.item, item.quantity)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: "outline", className: "h-12 w-full rounded-xl text-base" })}
+              >
+                Amazon
+              </a>
             </article>
           ))}
         </div>
