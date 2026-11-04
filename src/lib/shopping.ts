@@ -33,6 +33,13 @@ export function sameItemName(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
+export function amazonSearchUrl(item: string, quantity?: string | null): string {
+  const name = item.replace(/\s+/g, " ").trim();
+  const amount = (quantity ?? "").replace(/\s+/g, " ").trim();
+  const query = amount ? `${name} ${amount}` : name;
+  return `https://www.amazon.co.uk/s?k=${encodeURIComponent(query)}`;
+}
+
 export function validateShopping(raw: {
   item: string;
   quantity: string;
