@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { clearStaff } from "@/lib/actions";
 import { openBook } from "@/lib/book";
 import { EMPTY_FILTERS } from "@/lib/filters";
+import { staffJobStatus } from "@/lib/job-schedule";
 import { getCurrentStaff } from "@/lib/session";
 import { londonToday, shiftCivilDate } from "@/lib/time";
 import { LogForm } from "@/components/log-form";
@@ -14,7 +15,7 @@ import { Shell } from "@/components/shell";
 const COPY = {
   job: {
     title: "Extra job",
-    hint: "Pick every job that applies. Add your own if it is not on the list.",
+    hint: "Due jobs are marked. Pick every one that applies, or add your own.",
   },
   dog: {
     title: "Extra walk",
@@ -52,6 +53,7 @@ export default async function LogPage({ params }: { params: Promise<{ type: stri
   const book = await openBook();
   const today = londonToday();
   const recent = book.ok ? await book.store.listEntries({ ...EMPTY_FILTERS, staffId: staff.id }, 40) : [];
+  const jobStatus = book.ok && type === "job" ? staffJobStatus(await book.store.listJobLogs()) : undefined;
   const dogs: string[] = [];
   for (const entry of recent) {
     if (!entry.dogName) continue;
@@ -82,7 +84,13 @@ export default async function LogPage({ params }: { params: Promise<{ type: stri
           {book.message}
         </p>
       ) : (
-        <LogForm kind={type} today={today} minDate={shiftCivilDate(today, -14)} recentDogs={dogs} />
+        <LogForm
+          kind={type}
+          today={today}
+          minDate={shiftCivilDate(today, -14)}
+          recentDogs={dogs}
+          jobStatus={jobStatus}
+        />
       )}
     </Shell>
   );
