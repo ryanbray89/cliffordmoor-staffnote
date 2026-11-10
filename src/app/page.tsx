@@ -1,4 +1,4 @@
-import { ChevronRight, ClipboardList, Dog, MessageSquareText, ShoppingBasket } from "lucide-react";
+import { ChevronRight, ClipboardList, Dog, MessageSquareText, Package, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 
 import { chooseStaff, clearStaff } from "@/lib/actions";
@@ -46,15 +46,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   let mine: Entry[] = [];
   let neededCount = 0;
   let walksLeft = 0;
+  let stockAttention = 0;
   if (current) {
-    const [logs, shopping, plan] = await Promise.all([
+    const [logs, shopping, plan, stock] = await Promise.all([
       book.store.listEntries({ ...EMPTY_FILTERS, staffId: current.id }, 12),
       book.store.listShopping(),
       book.store.listWalkPlan(),
+      book.store.listStock(),
     ]);
     mine = logs;
     neededCount = shopping.filter((item) => item.status === "needed").length;
     walksLeft = walksOn(plan, londonToday()).filter((row) => !row.day.doneAt).length;
+    stockAttention = stock.filter((item) => item.status !== "ok").length;
   }
   const replies = mine
     .filter((entry) => entry.replies.length > 0)
@@ -186,6 +189,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <span>
                 <span className="block text-lg font-semibold">Note for Ryan</span>
                 <span className="block text-sm text-muted-foreground">Issues, maintenance, customer comments</span>
+              </span>
+            </Link>
+            <Link
+              href="/stock"
+              className="flex min-h-24 items-center gap-4 rounded-2xl bg-card px-4 py-4 shadow-sm ring-1 ring-border active:bg-accent"
+            >
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-accent text-primary">
+                <Package className="size-6" />
+              </span>
+              <span>
+                <span className="block text-lg font-semibold">Stock</span>
+                <span className="block text-sm text-muted-foreground">
+                  {stockAttention > 0 ? `${stockAttention} low or out` : "What is in the store"}
+                </span>
               </span>
             </Link>
             <Link

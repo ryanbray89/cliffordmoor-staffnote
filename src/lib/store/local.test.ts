@@ -224,4 +224,21 @@ describe("local store", () => {
     await writeFile(file, JSON.stringify(db));
     assert.deepEqual(await store.listWalkPlan(), []);
   });
+
+  it("updates stock without adding a shopping item", async () => {
+    const store = createLocalStore(dir);
+    const shoppingBefore = (await store.listShopping()).length;
+    const gloves = (await store.listStock()).find((item) => item.name === "Disposable gloves (boxes)");
+    assert.equal(gloves?.status, "low");
+    assert.ok(gloves);
+    await store.setStockStatus(gloves.id, "out", { id: null, name: "Jordanna" });
+    await store.adjustStock(gloves.id, -0.5, { id: null, name: "Jordanna" });
+    const updated = (await store.listStock()).find((item) => item.id === gloves.id);
+    assert.equal(updated?.status, "out");
+    assert.equal(updated?.quantity, 0.5);
+    assert.equal(updated?.updatedByName, "Jordanna");
+    assert.equal((await store.listShopping()).length, shoppingBefore);
+    const first = (await store.listStock())[0];
+    assert.equal(first?.status, "out");
+  });
 });

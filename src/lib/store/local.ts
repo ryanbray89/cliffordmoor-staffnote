@@ -7,6 +7,7 @@ import type { ShoppingItem } from "@/lib/shopping";
 import { buildSeed, type Database, type StoredEntry } from "@/lib/seed";
 import type { Entry, Reply, Staff } from "@/lib/types";
 import { readWalkDates } from "@/lib/walk-dates";
+import { seedStockItems, sortStockItems, stepStockQuantity, type StockItem, type StockStatus } from "@/lib/stock";
 import { joinWalkPlan, normalizeWalkDays, normalizeWalkDogs, type WalkDayRecord } from "@/lib/walks";
 import type { PhotoFile, Store } from "@/lib/store/types";
 
@@ -93,6 +94,32 @@ function normalizeShopping(value: unknown): ShoppingItem[] {
   return items;
 }
 
+function normalizeStock(value: unknown): StockItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: StockItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Partial<StockItem>;
+    if (typeof row.id !== "string" || typeof row.name !== "string" || row.name.trim().length === 0) continue;
+    const quantity = typeof row.quantity === "number" ? row.quantity : Number(row.quantity);
+    if (!Number.isFinite(quantity)) continue;
+    const status: StockStatus = row.status === "low" || row.status === "out" ? row.status : "ok";
+    items.push({
+      id: row.id,
+      name: row.name.trim(),
+      quantity: Math.min(9999, Math.max(0, Math.round(quantity * 10) / 10)),
+      kennelsNote: typeof row.kennelsNote === "string" && row.kennelsNote.trim() ? row.kennelsNote.trim() : null,
+      status,
+      sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : items.length + 1,
+      updatedBy: typeof row.updatedBy === "string" ? row.updatedBy : null,
+      updatedByName: typeof row.updatedByName === "string" && row.updatedByName.trim() ? row.updatedByName.trim() : "Someone",
+      updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : "1970-01-01T00:00:00.000Z",
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : "1970-01-01T00:00:00.000Z",
+    });
+  }
+  return items;
+}
+
 function compareStaff(a: Staff, b: Staff): number {
   return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "en-GB");
 }
@@ -122,6 +149,7 @@ async function readDb(dir: string): Promise<Database> {
       parsed.shopping = normalizeShopping(parsed.shopping);
       parsed.walkDogs = normalizeWalkDogs(parsed.walkDogs);
       parsed.walkDays = normalizeWalkDays(parsed.walkDays);
+      parsed.stock = Array.isArray(parsed.stock) ? normalizeStock(parsed.stock) : seedStockItems();
       return parsed;
     } catch {
       throw new Error("The local Staff Note file is damaged. Check data/staff-note.json.");
@@ -505,6 +533,101 @@ export function createLocalStore(dir = process.env.YARD_DATA_DIR || path.join(pr
           item.boughtByName = boughtByName;
           await writeDb(dir, db);
         }
+        return item;
+      });
+    },
+
+    async listStock() {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        return sortStockItems(db.stock);
+      });
+    },
+
+    async addStock(input) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        if (db.stock.some((item) => item.name.toLowerCase() === input.name.toLowerCase())) throw new Error("duplicate");
+        const now = new Date().toISOString();
+        const item: StockItem = {
+          id: randomUUID(),
+          name: input.name,
+          quantity: input.quantity,
+          kennelsNote: null,
+          status: input.quantity === 0 ? "out" : "ok",
+          sortOrder: db.stock.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1,
+          updatedBy: input.updatedBy,
+          updatedByName: input.updatedByName,
+          updatedAt: now,
+          createdAt: now,
+        };
+        db.stock.push(item);
+        await writeDb(dir, db);
+        return item;
+      });
+    },
+
+    async renameStock(id, name, actor) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item = db.stock.find((row) => row.id === id);
+        if (!item) throw new Error("missing");
+        if (db.stock.some((row) => row.id !== id && row.name.toLowerCase() === name.toLowerCase())) throw new Error("duplicate");
+        item.name = name;
+        item.updatedBy = actor.id;
+        item.updatedByName = actor.name;
+        item.updatedAt = new Date().toISOString();
+        await writeDb(dir, db);
+        return item;
+      });
+    },
+
+    async deleteStock(id) {
+      await withLock(dir, async () => {
+        const db = await readDb(dir);
+        db.stock = db.stock.filter((item) => item.id !== id);
+        await writeDb(dir, db);
+      });
+    },
+
+    async adjustStock(id, delta, actor) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item = db.stock.find((row) => row.id === id);
+        if (!item) throw new Error("missing");
+        item.quantity = stepStockQuantity(item.quantity, delta);
+        item.updatedBy = actor.id;
+        item.updatedByName = actor.name;
+        item.updatedAt = new Date().toISOString();
+        await writeDb(dir, db);
+        return item;
+      });
+    },
+
+    async setStockStatus(id, status, actor) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item = db.stock.find((row) => row.id === id);
+        if (!item) throw new Error("missing");
+        item.status = status;
+        item.updatedBy = actor.id;
+        item.updatedByName = actor.name;
+        item.updatedAt = new Date().toISOString();
+        await writeDb(dir, db);
+        return item;
+      });
+    },
+
+    async setStockKennels(id, kennelsNote, actor) {
+      return withLock(dir, async () => {
+        const db = await readDb(dir);
+        const item = db.stock.find((row) => row.id === id);
+        if (!item) throw new Error("missing");
+        item.kennelsNote = kennelsNote;
+        item.updatedBy = actor.id;
+        item.updatedByName = actor.name;
+        item.updatedAt = new Date().toISOString();
+        await writeDb(dir, db);
         return item;
       });
     },

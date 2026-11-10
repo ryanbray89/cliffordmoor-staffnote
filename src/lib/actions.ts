@@ -19,6 +19,7 @@ import { getStore } from "@/lib/store";
 import { londonToday } from "@/lib/time";
 import type { Entry, EntryStatus } from "@/lib/types";
 import { validateShopping } from "@/lib/shopping";
+import { isStockStatus, parseStockQuantity, validateKennelsNote, validateStockName } from "@/lib/stock";
 import { clampWalkDay, validateWalkPlan } from "@/lib/walks";
 import { cleanPersonName, validateEntry, type RawEntry } from "@/lib/validate";
 
@@ -38,6 +39,7 @@ function friendlySaveError(error: unknown): string {
     message.includes("tables") ||
     message.includes("shopping") ||
     message.includes("walk plan") ||
+    message.includes("stock list") ||
     message.includes("bucket") ||
     message.includes("damaged") ||
     message.includes("SUPABASE_URL")
@@ -340,6 +342,87 @@ export async function undoWalk(formData: FormData) {
   await walkActor(String(formData.get("source") ?? "yard"));
   try {
     await getStore().undoWalk(String(formData.get("id") ?? ""));
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "missing")) throw error;
+  }
+  refresh();
+}
+
+async function stockActor(source: string): Promise<{ id: string | null; name: string }> {
+  if (source === "office") {
+    if (!(await isAdmin())) redirect("/admin/login");
+    return { id: null, name: OFFICE_AUTHOR };
+  }
+  const staff = await getCurrentStaff();
+  if (!staff) redirect("/?needName=1");
+  return { id: staff.id, name: staff.name };
+}
+
+export async function addStockItem(formData: FormData) {
+  const actor = await stockActor(String(formData.get("source") ?? "yard"));
+  const named = validateStockName(String(formData.get("name") ?? ""));
+  if (!named.ok) return;
+  const quantity = parseStockQuantity(String(formData.get("quantity") ?? "0")) ?? 0;
+  try {
+    await getStore().addStock({ name: named.name, quantity, updatedBy: actor.id, updatedByName: actor.name });
+  } catch (error) {
+    if (error instanceof Error && error.message === "duplicate") return;
+    throw error;
+  }
+  refresh();
+}
+
+export async function renameStockItem(formData: FormData) {
+  if (!(await isAdmin())) redirect("/admin/login");
+  const named = validateStockName(String(formData.get("name") ?? ""));
+  if (!named.ok) return;
+  try {
+    await getStore().renameStock(String(formData.get("id") ?? ""), named.name, { id: null, name: OFFICE_AUTHOR });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "duplicate" || error.message === "missing")) return;
+    throw error;
+  }
+  refresh();
+}
+
+export async function deleteStockItem(formData: FormData) {
+  if (!(await isAdmin())) redirect("/admin/login");
+  await getStore().deleteStock(String(formData.get("id") ?? ""));
+  refresh();
+}
+
+export async function adjustStock(formData: FormData) {
+  const actor = await stockActor(String(formData.get("source") ?? "yard"));
+  const delta = Number(formData.get("delta"));
+  if (delta !== 0.5 && delta !== -0.5) return;
+  try {
+    await getStore().adjustStock(String(formData.get("id") ?? ""), delta, actor);
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "missing")) throw error;
+  }
+  refresh();
+}
+
+export async function setStockStatus(formData: FormData) {
+  const actor = await stockActor(String(formData.get("source") ?? "yard"));
+  const status = String(formData.get("status") ?? "");
+  if (!isStockStatus(status)) return;
+  try {
+    await getStore().setStockStatus(String(formData.get("id") ?? ""), status, actor);
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "missing")) throw error;
+  }
+  refresh();
+}
+
+export async function setStockKennels(formData: FormData) {
+  const actor = await stockActor(String(formData.get("source") ?? "yard"));
+  try {
+    await getStore().setStockKennels(
+      String(formData.get("id") ?? ""),
+      validateKennelsNote(String(formData.get("kennels") ?? "")),
+      actor,
+    );
   } catch (error) {
     if (!(error instanceof Error && error.message === "missing")) throw error;
   }

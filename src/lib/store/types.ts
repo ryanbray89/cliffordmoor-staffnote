@@ -1,4 +1,5 @@
 import type { JobLog } from "@/lib/job-schedule";
+import type { StockItem, StockStatus } from "@/lib/stock";
 import type { WalkDog } from "@/lib/walks";
 import type { NewShoppingItem, ShoppingItem } from "@/lib/shopping";
 import type { Entry, Filters, NewEntry, Staff } from "@/lib/types";
@@ -35,4 +36,11 @@ export type Store = {
   removeWalkDog(id: string): Promise<void>;
   markWalkDone(dayId: string, actor: { staffId: string | null; name: string }): Promise<void>;
   undoWalk(dayId: string): Promise<void>;
+  listStock(): Promise<StockItem[]>;
+  addStock(input: { name: string; quantity: number; updatedBy: string | null; updatedByName: string }): Promise<StockItem>;
+  renameStock(id: string, name: string, actor: { id: string | null; name: string }): Promise<StockItem>;
+  deleteStock(id: string): Promise<void>;
+  adjustStock(id: string, delta: number, actor: { id: string | null; name: string }): Promise<StockItem>;
+  setStockStatus(id: string, status: StockStatus, actor: { id: string | null; name: string }): Promise<StockItem>;
+  setStockKennels(id: string, kennelsNote: string | null, actor: { id: string | null; name: string }): Promise<StockItem>;
 };

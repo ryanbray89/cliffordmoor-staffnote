@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ShoppingItem } from "@/lib/shopping";
+import { isStockStatus, parseStockQuantity, sortStockItems, stepStockQuantity, type StockItem } from "@/lib/stock";
 import { readWalkDates } from "@/lib/walk-dates";
 import { joinWalkPlan, type WalkDayRecord, type WalkDogRecord } from "@/lib/walks";
 import type { Entry, EntryStatus, Filters, NewEntry, Reply, Staff } from "@/lib/types";
@@ -69,6 +70,11 @@ function fail(error: { message: string; code?: string }): never {
   if (/walk_dogs|walk_days/i.test(error.message)) {
     throw new Error(
       "The walk plan is not there yet. Run supabase/migrations/004_walk_plan.sql in the SQL editor, then refresh.",
+    );
+  }
+  if (/stock_items/i.test(error.message)) {
+    throw new Error(
+      "The stock list is not there yet. Run supabase/migrations/005_stock.sql in the SQL editor, then refresh.",
     );
   }
   if (/shopping_items/i.test(error.message)) {
@@ -586,6 +592,142 @@ export function createSupabaseStore(): Store {
         .single();
       if (updated.error) fail(updated.error);
       return mapShopping(updated.data as ShoppingRow);
+    },
+
+    async listStock() {
+      const { data, error } = await db.from("stock_items").select("*");
+      if (error) fail(error);
+      const items = ((data ?? []) as Array<{
+        id: string;
+        name: string;
+        quantity: number | string;
+        kennels_note: string | null;
+        status: StockItem["status"];
+        sort_order: number;
+        updated_by: string | null;
+        updated_by_name: string | null;
+        updated_at: string;
+        created_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+        quantity: parseStockQuantity(row.quantity) ?? 0,
+        kennelsNote: row.kennels_note,
+        status: isStockStatus(row.status) ? row.status : "ok",
+        sortOrder: row.sort_order,
+        updatedBy: row.updated_by,
+        updatedByName: row.updated_by_name?.trim() || "Someone",
+        updatedAt: row.updated_at,
+        createdAt: row.created_at,
+      }));
+      return sortStockItems(items);
+    },
+
+    async addStock(input) {
+      const existing = await db.from("stock_items").select("sort_order");
+      if (existing.error) fail(existing.error);
+      const sortOrder = ((existing.data ?? []) as { sort_order: number }[]).reduce((max, row) => Math.max(max, row.sort_order), 0) + 1;
+      const now = new Date().toISOString();
+      const { data, error } = await db
+        .from("stock_items")
+        .insert({
+          name: input.name,
+          quantity: input.quantity,
+          status: input.quantity === 0 ? "out" : "ok",
+          sort_order: sortOrder,
+          updated_by: input.updatedBy,
+          updated_by_name: input.updatedByName,
+          updated_at: now,
+        })
+        .select("*")
+        .single();
+      if (error) {
+        if (error.code === "23505") throw new Error("duplicate");
+        fail(error);
+      }
+      return (await this.listStock()).find((item) => item.id === (data as { id: string }).id) as StockItem;
+    },
+
+    async renameStock(id, name, actor) {
+      const { error } = await db
+        .from("stock_items")
+        .update({
+          name,
+          updated_by: actor.id,
+          updated_by_name: actor.name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) {
+        if (error.code === "23505") throw new Error("duplicate");
+        fail(error);
+      }
+      const item = (await this.listStock()).find((row) => row.id === id);
+      if (!item) throw new Error("missing");
+      return item;
+    },
+
+    async deleteStock(id) {
+      const { error } = await db.from("stock_items").delete().eq("id", id);
+      if (error) fail(error);
+    },
+
+    async adjustStock(id, delta, actor) {
+      const current = await db.from("stock_items").select("quantity").eq("id", id).maybeSingle();
+      if (current.error) fail(current.error);
+      if (!current.data) throw new Error("missing");
+      const quantity = stepStockQuantity(parseStockQuantity((current.data as { quantity: number | string }).quantity) ?? 0, delta);
+      const { error } = await db
+        .from("stock_items")
+        .update({
+          quantity,
+          updated_by: actor.id,
+          updated_by_name: actor.name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) fail(error);
+      const item = (await this.listStock()).find((row) => row.id === id);
+      if (!item) throw new Error("missing");
+      return item;
+    },
+
+    async setStockStatus(id, status, actor) {
+      const { data, error } = await db
+        .from("stock_items")
+        .update({
+          status,
+          updated_by: actor.id,
+          updated_by_name: actor.name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+      if (error) fail(error);
+      if (!data) throw new Error("missing");
+      const item = (await this.listStock()).find((row) => row.id === id);
+      if (!item) throw new Error("missing");
+      return item;
+    },
+
+    async setStockKennels(id, kennelsNote, actor) {
+      const { data, error } = await db
+        .from("stock_items")
+        .update({
+          kennels_note: kennelsNote,
+          updated_by: actor.id,
+          updated_by_name: actor.name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+      if (error) fail(error);
+      if (!data) throw new Error("missing");
+      const item = (await this.listStock()).find((row) => row.id === id);
+      if (!item) throw new Error("missing");
+      return item;
     },
 
     async deleteShopping(id) {
