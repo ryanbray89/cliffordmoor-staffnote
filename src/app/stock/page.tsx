@@ -16,7 +16,7 @@ export default async function StockPage() {
   const book = await openBook();
 
   return (
-    <Shell>
+    <Shell wide>
       <div className="mb-5">
         <Link href="/" className="inline-flex h-11 items-center gap-1 text-base font-semibold">
           <ChevronLeft className="size-5" />
