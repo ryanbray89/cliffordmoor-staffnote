@@ -1,3 +1,5 @@
+import type { StockItem } from "@/lib/stock";
+import { seedStockItems } from "@/lib/stock";
 import type { ShoppingItem } from "@/lib/shopping";
 import type { WalkDayRecord, WalkDogRecord } from "@/lib/walks";
 import type { Entry, Reply, Staff } from "@/lib/types";
@@ -28,6 +30,7 @@ export type Database = {
   shopping: ShoppingItem[];
   walkDogs: WalkDogRecord[];
   walkDays: WalkDayRecord[];
+  stock: StockItem[];
 };
 
 function ago(now: Date, minutes: number): string {
@@ -233,5 +236,5 @@ export function buildSeed(now = new Date()): Database {
     },
   ];
 
-  return { staff, entries, replies, shopping: [], walkDogs: [], walkDays: [] };
+  return { staff, entries, replies, shopping: [], walkDogs: [], walkDays: [], stock: seedStockItems() };
 }
