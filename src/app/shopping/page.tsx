@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { markShoppingGot } from "@/lib/actions";
 import { openBook } from "@/lib/book";
+import { amazonSearchUrl } from "@/lib/shopping";
 import { getCurrentStaff } from "@/lib/session";
 import { formatLogged } from "@/lib/time";
 import { ShoppingForm } from "@/components/shopping-form";
@@ -63,6 +64,14 @@ export default async function ShoppingPage({
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.addedByName} · {formatLogged(item.createdAt)}
                   </p>
+                  <a
+                    href={amazonSearchUrl(item.item, item.quantity)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex text-sm text-muted-foreground underline underline-offset-4"
+                  >
+                    Amazon
+                  </a>
                   <form action={markShoppingGot} className="mt-3">
                     <input type="hidden" name="id" value={item.id} />
                     <Button type="submit" variant="outline" className="h-12 w-full rounded-2xl bg-card text-base">
